@@ -1,0 +1,41 @@
+// Definitions for AK5704 ADC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+
+//	fragment@1 {
+//		target = <&gpio>;
+//		__overlay__ {
+//		pinctrl-names = "default";
+//		pinctrl-0 = <&akm_pins>;
+//
+//			akm_pins: akm_pins {
+//				brcm,pins = <4>;
+//				brcm,function = <1>; /* out */
+//			};
+//		};
+//	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ak5704@10 {
+				#sound-dai-cells = <0>;
+				compatible = "akm,ak09970";
+				reg = <0x10>;
+				ak5704,pdn-gpio = <&gpio 4 0>;
+				status = "okay";
+			};
+		};
+
+	};
+
+};
+ 
