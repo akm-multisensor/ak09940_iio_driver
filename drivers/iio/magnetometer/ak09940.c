@@ -63,66 +63,75 @@
 
 
 /* REGISTER MAP */
-#define AK09940_REG_WIA	0x00
-#define AK09940_DEVICE_ID  0x48A1
+#define AK09940_REG_WIA				0x00
+#define AK09940_DEVICE_ID				0x48A1
 
 
-#define AK09940_REG_ST1  0x10
-#define AK09940_REG_HXL  0x11
-#define AK09940_REG_HYL  0x14
-#define AK09940_REG_HZL  0x17
+#define AK09940_REG_ST1				0x10
+#define AK09940_REG_HXL				0x11
+#define AK09940_REG_HYL				0x14
+#define AK09940_REG_HZL				0x17
 
 
-#define AK09940_REG_TMPS			   0x1A
+#define AK09940_REG_TMPS			0x1A
 #define AK09940_REG_ST2				0x1B
 
-#define AK09940_REG_CNTL1			  0x30
-#define AK09940_REG_CNTL2			  0x31
-#define AK09940_REG_CNTL3			  0x32
-#define AK09940_REG_SRST			   0x33
-#define AK09940_REG_I2CDIS			 0x36
+#define AK09940_REG_CNTL1			0x30
+#define AK09940_REG_CNTL2			0x31
+#define AK09940_REG_CNTL3			0x32
+#define AK09940_REG_SRST				0x33
+#define AK09940_REG_I2CDIS			0x36
 
-#define AK09940_MAX_REGS			   AK09940_REG_I2CDIS
+#define AK09940_MAX_REGS			AK09940_REG_I2CDIS
 
-#define AK09940_MEASUREMENT_WAIT_TIME  2
+#define AK09940_MEASUREMENT_WAIT_TIME		2
 
-#define AK09940_MAG_DATA_LENTH		 9
+#define AK09940_MAG_DATA_LENTH			9
 #define AK09940_READ_DATA_LENTH		12
 
-#define AK09940_MODE_PDN			   0x00
-#define AK09940_MODE_SNG			   0x01
-#define AK09940_MODE_CONT_10HZ		 0X02
-#define AK09940_MODE_CONT_20HZ		 0X04
-#define AK09940_MODE_CONT_50HZ		 0X06
-#define AK09940_MODE_CONT_100HZ		0X08
-#define AK09940_MODE_CONT_200HZ		0X0A
-#define AK09940_MODE_CONT_400HZ		0X0C
-#define AK09940_MODE_SELFTEST		  0x10
-#define AK09940_MODE_NUM			   9
+#define AK09940_MODE_PDN			0x00
+#define AK09940_MODE_SNG			0x01
+#define AK09940_MODE_CONT_10HZ			0x02
+#define AK09940_MODE_CONT_20HZ			0x04
+#define AK09940_MODE_CONT_50HZ			0x06
+#define AK09940_MODE_CONT_100HZ		0x08
+#define AK09940_MODE_CONT_200HZ		0x0A
+#define AK09940_MODE_CONT_400HZ		0x0C
+#define AK09940_MODE_SELFTEST			0x10
+#define AK09940_MODE_NUM			9
 
 
 /* AK09915 selftest threshold */
-#define AK09940_TEST_LOLIM_X  (-1200)
-#define AK09940_TEST_HILIM_X  (-300)
-#define AK09940_TEST_LOLIM_Y  (300)
-#define AK09940_TEST_HILIM_Y  (1200)
-#define AK09940_TEST_LOLIM_Z  (-1600)
-#define AK09940_TEST_HILIM_Z  (-400)
+#define AK09940_TEST_LOLIM_X			(-1200)
+#define AK09940_TEST_HILIM_X			(-300)
+#define AK09940_TEST_LOLIM_Y			(300)
+#define AK09940_TEST_HILIM_Y			(1200)
+#define AK09940_TEST_LOLIM_Z			(-1600)
+#define AK09940_TEST_HILIM_Z			(-400)
 
-#define AK09940_WM(wm)	 ((wm - 1) & 0x07)
-#define AK09940_WM_EN(en)  ((en) << 7)
-#define AK09940_SDR(sdr)   ((sdr) << 5)
+#define AK09940_WM(wm)				((wm - 1) & 0x07)
+#define AK09940_WM_EN(en)			((en) << 7)
+#define AK09940_SDR(sdr)				((sdr) << 5)
 
-#define AK09940_WM_EN_MASK			   0x80
-#define AK09940_WM_EN_SHIFT			  7
-#define AK09940_SDR_MASK				 0x60
-#define AK09940_SDR_SHIFT				5
-#define AK09940_MODE_MASK				0x1F
-#define AK09940_MODE_SHIFT			   0
+#define AK09940_WM_EN_MASK			0x80
+#define AK09940_WM_EN_SHIFT			7
+#define AK09940_SDR_MASK			0x60
+#define AK09940_SDR_SHIFT			5
+#define AK09940_MODE_MASK			0x1F
+#define AK09940_MODE_SHIFT			0
 
-#define AK09940_DATA_OVERFLOW_VALUE	  0x1FFFF
+#define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
 
-#define AK09940_PDN_TO_OTHER_MODE_DELAY  1
+#define AK09940_PDN_TO_OTHER_MODE_DELAY	1
+
+/* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
+#define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
+
+#define AK09940_FIFO_INV_BIT_MASK		0x04
+
+#define NUM_OF_AXIS				3
+
+#define AK09940_RAW_DATA_TO_Q10(x)		(x << 10)
 
 enum {
 	AK09940_ST1_POS = 0,
@@ -167,12 +176,17 @@ static int measurementModeRegTable[] = {
 struct ak09940_data {
 	struct i2c_client  *client;
 	struct iio_trigger *trig;
-	struct mutex	   lock;
+	struct mutex buffer_mutex;
+	struct mutex fifo_mutex;
+	struct work_struct	flush_work;
+	struct workqueue_struct *wq;
+	int				rstn_gpio;
 	int				int_gpio;
 	int				irq;
-	int				rstn_gpio;
-
-	u8				 mode;
+	/* this value represents current operation mode.
+	 *  this value should be one of measurementModeRegTable
+	 */
+	atomic_t				mode;
 	s16				numMode;
 
 	u8				 SDRbit;
@@ -182,11 +196,19 @@ struct ak09940_data {
 	u8				 watermark_en;
 	u8				 TEMPbit;
 
+	/* Axis conversion */
+	u8				 axis_order[NUM_OF_AXIS];
+	u8				 axis_sign[NUM_OF_AXIS];
+
 	s32				test_lolim[3];
 	s32				test_hilim[3];
 	int				*freq_table;
 	int				*modeReg_table;
 	u8				 freq_num;
+
+	/* previous timestamp [nsec] */
+	s64				prev_time_ns;
+
 };
 
 /********************  Register R/W  *****************************************/
@@ -214,13 +236,12 @@ static int ak09940_i2c_reads(
 
 	ret = i2c_transfer(client->adapter, xfer, 2);
 
-	if (ret == 2) {
+	if (ret == 2)
 		return 0;
-	} else if (ret < 0) {
+	else if (ret < 0)
 		return ret;
-	} else {
+	else
 		return -EIO;
-	}
 }
 
 static int ak09940_i2c_read(
@@ -242,9 +263,8 @@ static int ak09940_i2c_read(
 	if (ret < 0) {
 		dev_err(&client->dev, "[AK09940] I2C Read Error\n");
 
-		for (i = 0; i < rLen; i++) {
+		for (i = 0; i < rLen; i++)
 			rdata[i] = 0;
-		}
 	}
 
 	return (ret);
@@ -257,16 +277,15 @@ static int ak09940_i2c_write(
 {
 	int ret;
 
-	akdbgprt("[AK09940] %s (0x%02X, 0x%02X)\n", __func__, (int)address,
-	(int)value);
+	akdbgprt("[AK09940] %s (0x%02X, 0x%02X)\n",
+			__func__,
+			(int)address,
+			(int)value);
 
 	ret = i2c_smbus_write_byte_data(client, address, value);
 
-	if (ret < 0) {
+	if (ret < 0)
 		pr_err("%s: comm error, ret= %d\n", __func__, ret);
-	}
-
-	pr_debug("%s return %d\n", __func__, ret);
 
 	return ret;
 }
@@ -321,17 +340,18 @@ static int ak09940_check_measurement_mode(
 	u8 i = 0;
 
 	akdbgprt("[AK09940] %s called, mode=%d", __func__, mode);
+	if ((mode == AK09940_MODE_SNG) || (mode == AK09940_MODE_SELFTEST))
+		return 0;
 
 	for (i = 0; i < akm->freq_num; i++) {
-		if (akm->modeReg_table[i] == mode) {
+		if (akm->modeReg_table[i] == mode)
 			return 0;
-		}
 	}
 
 	return -EINVAL;
 }
 
-static int ak09940_set_continue_mode_measure(
+static int ak09940_set_mode_measure(
 	struct ak09940_data *akm,
 	u8				  mode)
 {
@@ -344,9 +364,8 @@ static int ak09940_set_continue_mode_measure(
 
 	error = ak09940_check_measurement_mode(akm, mode);
 
-	if (error) {
+	if (error)
 		return error;
-	}
 
 	/*set watermark*/
 	if (akm->watermark > 0) {
@@ -362,7 +381,9 @@ static int ak09940_set_continue_mode_measure(
 								  cntl2_value);
 	}
 
-	if ((akm->mode != AK09940_MODE_PDN) && (mode != AK09940_MODE_PDN)) {
+	if (atomic_cmpxchg(&akm->mode,
+			AK09940_MODE_PDN, mode)
+			!= AK09940_MODE_PDN) {
 		/* now mode is not PDN mode, set PDN mode first */
 		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 			AK09940_SDR(akm->SDRbit) + AK09940_MODE_PDN;
@@ -370,22 +391,30 @@ static int ak09940_set_continue_mode_measure(
 								  cntl3_value);
 
 		if (error) {
-			akm->mode = AK09940_MODE_PDN;
+			atomic_set(&akm->mode, AK09940_MODE_PDN);
 			return error;
 		}
 
-		msleep(AK09940_PDN_TO_OTHER_MODE_DELAY);
+		msleep(20);
 	}
 
-	akm->mode = mode;
 	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 		AK09940_SDR(akm->SDRbit) +
-		akm->mode;
+		mode;
 	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
 
 	if (error) {
-		akm->mode = AK09940_MODE_PDN;
+		atomic_set(&akm->mode, AK09940_MODE_PDN);
 		return error;
+	}
+	if ((mode == AK09940_MODE_SNG) ||
+		(mode == AK09940_MODE_SELFTEST)) {
+		/* if mode is single measurement or selftest
+		 * chip will swith to PDN mode automaticly
+		 */
+		atomic_set(&akm->mode, AK09940_MODE_PDN);
+	} else {
+		atomic_set(&akm->mode, mode);
 	}
 
 	return error;
@@ -414,9 +443,8 @@ static int ak09940_get_continue_mode_by_interval(
 
 	freq = 1000 / interval;
 
-	while ((freq > measurementFreqTable[n]) && (n < (akm->numMode - 1))) {
+	while ((freq > measurementFreqTable[n]) && (n < (akm->numMode - 1)))
 		n++;
-	}
 
 	mode = measurementModeRegTable[n];
 	akdbgprt("[AK09940] %s mode = %d\n", __func__, mode);
@@ -424,19 +452,17 @@ static int ak09940_get_continue_mode_by_interval(
 	return mode;
 }
 
-static int ak09940_parse_raw_data(
+static int ak09940_parse_raw_data_convert_q10(
 	u8  *reg,
 	s32 *mag)
 {
 	int i = 0;
 
-	if (reg == NULL) {
+	if (reg == NULL)
 		return -1;
-	}
 
-	if (mag == NULL) {
+	if (mag == NULL)
 		return -1;
-	}
 
 	/* Store data (uT) */
 	for (i = 0; i < 3; i++) {
@@ -445,18 +471,22 @@ static int ak09940_parse_raw_data(
 			(((uint32_t)reg[i * 3 + 2] << 24) |
 			 ((uint32_t)reg[i * 3 + 1] << 16) |
 			 ((uint32_t)reg[i * 3] << 8)) >> 8;
+		/* convert to Q10 data
+		 * real data is 18bit, so we use Q10
+		 */
+		AK09940_RAW_DATA_TO_Q10(*(mag + i));
 	}
+
 
 	return 0;
 }
 
 static int ak09940_one_axis_data_check_overflow(s32 data)
 {
-	if (data == AK09940_DATA_OVERFLOW_VALUE) {
+	if (data == AK09940_DATA_OVERFLOW_VALUE)
 		return 1;
-	} else {
+	else
 		return 0;
-	}
 }
 
 static int ak09940_data_check_overflow(s32 *mag)
@@ -465,15 +495,13 @@ static int ak09940_data_check_overflow(s32 *mag)
 	int ret = 0;
 
 	for (i = 0; i < 3; i++) {
-		if (mag == NULL) {
+		if (mag == NULL)
 			return -EINVAL;
-		}
 
 		ret = ak09940_one_axis_data_check_overflow(*(mag + i));
 
-		if (ret) {
+		if (ret)
 			return 1;
-		}
 	}
 
 	return 0;
@@ -512,34 +540,36 @@ static ssize_t attr_setting_reg_store(
 	u8				  address = 0, value = 0;
 	u8				  i = 0;
 	u8				  new_mode = 0;
+	long				temp = 0;
 
 	akdbgprt("[AK09940] %s called: '%s'(%zu)", __func__, buf, count);
 
-	if (buf == NULL) {
+	if (buf == NULL)
 		return -EINVAL;
-	}
 
-	if (count == 0) {
+	if (count == 0)
 		return 0;
-	}
 
 	while ((p = strsep(&ptr_data, ","))) {
-		if (!*p) {
+		if (!*p)
 			break;
-		}
 
-		if (pt_count >= 3) {
+		if (pt_count >= 3)
 			break;
-		}
 
 		if ((pt_count == 0) ||
 			((val[0] >= AK09940_REG_CNTL1) &&
 			 (val[0] <= AK09940_REG_CNTL3))) {
-			val[pt_count] = simple_strtol(p, NULL, 10);
+			/*val[pt_count] = simple_strtol(p, NULL, 10); */
+			ret = kstrtol(p, 10, &temp);
+			if (ret)
+				goto KSTRTOL_ERR;
 		} else {
-			sscanf(p, "%x", &value);
-			val[pt_count] = (unsigned long)value;
+			ret = kstrtol(p, 10, &temp);
+			if (ret)
+				goto KSTRTOL_ERR;
 		}
+		val[pt_count] = temp;
 
 		pt_count++;
 	}
@@ -547,7 +577,7 @@ static ssize_t attr_setting_reg_store(
 	if (pt_count != 2) {
 		dev_err(dev, "[AK09940] %s pt_count = %d, Error", __func__,
 				pt_count);
-		return -EINVAL;
+		goto PARA_NUMBER_ERR;
 	} else {
 		switch (val[0]) {
 		case 0x30:
@@ -570,7 +600,7 @@ static ssize_t attr_setting_reg_store(
 				i++;
 				continue;
 			}
-			akm->mode = i;
+			atomic_set(&akm->mode, i);
 			break;
 		}
 	}
@@ -580,14 +610,18 @@ static ssize_t attr_setting_reg_store(
 	ret = ak09940_i2c_write(akm->client, address, value);
 
 	return count;
+KSTRTOL_ERR:
+	return ret;
+PARA_NUMBER_ERR:
+	return -EINVAL;
 }
 
 
 static IIO_DEVICE_ATTR(setting_reg,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   attr_setting_reg_show,
-					   attr_setting_reg_store,
-					   0);
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		attr_setting_reg_show,
+		attr_setting_reg_store,
+		0);
 
 static ssize_t attr_data_reg_show(
 	struct device		   *dev,
@@ -608,67 +642,28 @@ static ssize_t attr_data_reg_show(
 					   AK09940_READ_DATA_LENTH, result);
 
 #ifdef AK09940_DEBUG
-	for (i = 0; i < AK09940_READ_DATA_LENTH; i++) {
+	for (i = 0; i < AK09940_READ_DATA_LENTH; i++)
 		akdbgprt("[AK09940] %s %d %02XH\n", __func__, i, result[i]);
-	}
 #endif
 
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	}
 
-	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
+	ak09940_parse_raw_data_convert_q10(&result[AK09940_DATA_POS], mag);
 
 	if (ak09940_data_check_overflow(mag)) {
 		akdbgprt("[AK09940] %s read mag data overflow!!!!!!!!!",
 				 __func__);
 	}
-
 	result[0] &= 0x3FF;
 	return snprintf(buf, 15, "%04X,%04x,%04x\n", mag[0], mag[1], mag[2]);
 }
 
 static IIO_DEVICE_ATTR(data_reg,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   attr_data_reg_show,
-					   NULL,
-					   0);
-
-static int ak09940_set_selftest_mode_measure(struct ak09940_data *akm)
-{
-	int error = 0;
-	u8  cntl3_value = 0;
-
-	akdbgprt("[AK09940] %s called", __func__);
-
-	if (akm->mode != AK09940_MODE_PDN) {
-		/*now mode is not PDN mode, set PDN mode first*/
-		akm->mode = AK09940_MODE_PDN;
-		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-			AK09940_SDR(akm->SDRbit) + akm->mode;
-		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3,
-								  cntl3_value);
-
-		if (error) {
-			akm->mode = AK09940_MODE_PDN;
-			return error;
-		}
-
-		msleep(AK09940_PDN_TO_OTHER_MODE_DELAY);
-	}
-
-	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-		AK09940_SDR(akm->SDRbit) +
-		AK09940_MODE_SELFTEST;
-	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
-
-	if (error) {
-		akm->mode = AK09940_MODE_PDN;
-		return error;
-	}
-
-	return error;
-}
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		attr_data_reg_show,
+		NULL,
+		0);
 
 static void selftest_judgement(
 	struct ak09940_data *akm,
@@ -684,7 +679,8 @@ static void selftest_judgement(
 		if ((data[i] < akm->test_lolim[i]) ||
 			(akm->test_hilim[i] < data[i])) {
 			akdbgprt(
-				"[AK09940] %s , axis %d failed,  data,%d, low_limit,%d,hi_limit,%d\n", __func__, i,
+				"[AK09940] %s , axis %d failed,  data,%d, low_limit,%d,hi_limit,%d\n",
+				__func__, i,
 				data[i], akm->test_lolim[i],
 				akm->test_hilim[i]);
 			result |= (1 << i);
@@ -706,7 +702,7 @@ static ssize_t attr_selftest_show(
 
 	akdbgprt("[AK09940] %s called", __func__);
 
-	ret = ak09940_set_selftest_mode_measure(akm);
+	ret = ak09940_set_mode_measure(akm, AK09940_MODE_SELFTEST);
 
 	if (ret) {
 		akdbgprt("[AK09940] %s device set selftest mode fail",
@@ -714,63 +710,26 @@ static ssize_t attr_selftest_show(
 		return 0;
 	}
 
-	msleep(10);
+	msleep(20);
 	ret = ak09940_i2c_read(akm->client, AK09940_REG_ST1,
 					   AK09940_READ_DATA_LENTH, result);
 
-	if (ret < 0) {
+	if (ret < 0)
 		return ret;
-	}
 
-	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
-	akdbgprt("[AK09940] mag[X,Y,Z]=[%d,%d,%d]\n", (s32)mag[0], (s32)mag[1],
-			 (s32)mag[2]);
+	ak09940_parse_raw_data_convert_q10(&result[AK09940_DATA_POS], mag);
+	akdbgprt("[AK09940] mag[X,Y,Z]=[%d,%d,%d]\n",
+			(s32)mag[0], (s32)mag[1], (s32)mag[2]);
 
 	selftest_judgement(akm, mag);
 	return snprintf(buf, 5, "pass\n");
 }
 
 static IIO_DEVICE_ATTR(selftest,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   attr_selftest_show,
-					   NULL,
-					   0);
-
-static int ak09940_set_single_mode_measure(struct ak09940_data *akm)
-{
-	int error = 0;
-	u8  cntl3_value = 0;
-
-	akdbgprt("[AK09940] %s called", __func__);
-
-	if (akm->mode != AK09940_MODE_PDN) {
-		/* now mode is not PDN mode, set PDN mode first */
-		akm->mode = AK09940_MODE_PDN;
-		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-			AK09940_SDR(akm->SDRbit) + akm->mode;
-		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3,
-								  cntl3_value);
-
-		if (error) {
-			akm->mode = AK09940_MODE_PDN;
-			return error;
-		}
-
-		msleep(AK09940_PDN_TO_OTHER_MODE_DELAY);
-	}
-
-	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-		AK09940_SDR(akm->SDRbit) +
-		AK09940_MODE_SNG;
-	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
-
-	if (error) {
-		akm->mode = AK09940_MODE_PDN;
-		return error;
-	}
-
-	return error;
-}
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		attr_selftest_show,
+		NULL,
+		0);
 
 static ssize_t attr_single_store(
 	struct device		   *dev,
@@ -782,16 +741,16 @@ static ssize_t attr_single_store(
 
 	akdbgprt("[AK09940] %s called", __func__);
 
-	ak09940_set_single_mode_measure(akm);
+	ak09940_set_mode_measure(akm, AK09940_MODE_SNG);
 
 	return count;
 }
 
 static IIO_DEVICE_ATTR(single,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   NULL,
-					   attr_single_store,
-					   0);
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		NULL,
+		attr_single_store,
+		0);
 
 static ssize_t attr_continuous_store(
 	struct device		   *dev,
@@ -802,23 +761,26 @@ static ssize_t attr_continuous_store(
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
 	int interval = 0;
 	int mode = 0;
-
+	int ret = 0;
 
 	akdbgprt("[AK09940] %s called, buf=%s", __func__, buf);
-	interval = simple_strtol(buf, NULL, 10);
+	/*interval = simple_strtol(buf, NULL, 10);*/
+	ret = kstrtol(buf, 10, &interval);
+	if (ret)
+		return ret;
 
 	mode = ak09940_get_continue_mode_by_interval(akm, interval);
 
-	ak09940_set_continue_mode_measure(akm, mode);
+	ak09940_set_mode_measure(akm, mode);
 
 	return count;
 }
 
 static IIO_DEVICE_ATTR(continuous,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   NULL,
-					   attr_continuous_store,
-					   0);
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		NULL,
+		attr_continuous_store,
+		0);
 
 static ssize_t attr_watermark_store(
 	struct device		   *dev,
@@ -832,55 +794,57 @@ static ssize_t attr_watermark_store(
 	int error = 0;
 
 	akdbgprt("[AK09940] %s called, buf=%s", __func__, buf);
-	watermark = simple_strtol(buf, NULL, 10);
+	/*watermark = simple_strtol(buf, NULL, 10);*/
+	error = kstrtol(buf, 10, &watermark);
+	if (error)
+		return error;
 
-	if (akm->watermark == watermark) {
+	if (akm->watermark == watermark)
 		return count;
-	} else {
-		akm->watermark = watermark;
-		error =
-			ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
-							  akm->watermark);
 
-		if (error) {
-			dev_err(&akm->client->dev,
-					"[AK09940] %s attr_watermark_store set cntl1 faild\n",
-					__func__);
-			return error;
-		}
+	akm->watermark = watermark;
+	error =
+		ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
+						  akm->watermark);
 
-		akdbgprt("[AK09940] %s called, watermark=%d, watermark_en = %d",
-				 __func__, akm->watermark, akm->watermark_en);
+	if (error) {
+		dev_err(&akm->client->dev,
+				"[AK09940] %s set cntl1 faild\n",
+				__func__);
+		return error;
+	}
 
-		if (akm->watermark == 0) {
-			if (akm->watermark_en != 0) {
-				akm->watermark_en = 0;
-				cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-					AK09940_SDR(
-						akm->SDRbit) + akm->mode;
-				error = ak09940_i2c_write(akm->client,
-										  AK09940_REG_CNTL3,
-										  cntl3_value);
+	akdbgprt("[AK09940] %s called, watermark=%d, watermark_en = %d",
+			 __func__, akm->watermark, akm->watermark_en);
 
-				if (error) {
-					akm->mode = AK09940_MODE_PDN;
-					return error;
-				}
+	if (akm->watermark == 0) {
+		if (akm->watermark_en != 0) {
+			akm->watermark_en = 0;
+			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
+				AK09940_SDR(
+					akm->SDRbit) + atomic_read(&akm->mode);
+			error = ak09940_i2c_write(akm->client,
+					AK09940_REG_CNTL3,
+					cntl3_value);
+
+			if (error) {
+				atomic_set(&akm->mode, AK09940_MODE_PDN);
+				return error;
 			}
-		} else {
-			if (akm->watermark_en == 0) {
-				akm->watermark_en = 1;
-				cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-					AK09940_SDR(
-						akm->SDRbit) + akm->mode;
-				error = ak09940_i2c_write(akm->client,
-										  AK09940_REG_CNTL3,
-										  cntl3_value);
+		}
+	} else {
+		if (akm->watermark_en == 0) {
+			akm->watermark_en = 1;
+			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
+				AK09940_SDR(
+					akm->SDRbit) + atomic_read(&akm->mode);
+			error = ak09940_i2c_write(akm->client,
+						  AK09940_REG_CNTL3,
+						  cntl3_value);
 
-				if (error) {
-					akm->mode = AK09940_MODE_PDN;
-					return error;
-				}
+			if (error) {
+				atomic_set(&akm->mode, AK09940_MODE_PDN);
+				return error;
 			}
 		}
 	}
@@ -890,10 +854,10 @@ static ssize_t attr_watermark_store(
 }
 
 static IIO_DEVICE_ATTR(watermark,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   NULL,
-					   attr_watermark_store,
-					   0);
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		NULL,
+		attr_watermark_store,
+		0);
 static ssize_t attr_softreset_store(
 	struct device		   *dev,
 	struct device_attribute *attr,
@@ -915,10 +879,10 @@ static ssize_t attr_softreset_store(
 }
 
 static IIO_DEVICE_ATTR(reset,
-					   0664, /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-					   NULL,
-					   attr_softreset_store,
-					   0);
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		NULL,
+		attr_softreset_store,
+		0);
 
 static struct attribute			 *ak09940_attributes[] = {
 	&iio_dev_attr_setting_reg.dev_attr.attr,
@@ -1020,6 +984,8 @@ static int ak09940_read_raw(
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
+		if (iio_buffer_enabled(indio_dev))
+			return -EBUSY;
 		ret = ak09940_read_axis(akm, chan->scan_index, &readValue);
 		pr_info("[AK09940] %s : scan_index=%d, readValue=%X\n",
 				__func__,
@@ -1032,13 +998,14 @@ static int ak09940_read_raw(
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		readValue = ak09940_i2c_read(akm->client, AK09940_REG_CNTL3,
-									 1,
-									 &cntlValue);
+		readValue = ak09940_i2c_read(akm->client,
+						AK09940_REG_CNTL3,
+						1,
+						&cntlValue);
 		readValue &= 0x0F;
 		pr_info("[AK09940] %s : mode=%d, MODEbits=%X\n", __func__,
-				akm->mode, cntlValue);
-		*val = akm->mode;
+				atomic_read(&akm->mode), cntlValue);
+		*val = atomic_read(&akm->mode);
 		return IIO_VAL_INT;
 	}
 
@@ -1056,9 +1023,9 @@ static int ak09940_set_measurement_freq(
 
 	mode = ak09940_get_continue_mode_by_interval(akm, val);
 
-	ak09940_set_continue_mode_measure(akm, mode);
+	ak09940_set_mode_measure(akm, mode);
 
-	akdbgprt("[AK09940] %s mode = %d\n", __func__, akm->mode);
+	akdbgprt("[AK09940] %s mode = %d\n", __func__, atomic_read(&akm->mode));
 
 	return 0;
 }
@@ -1087,6 +1054,159 @@ static const struct iio_info ak09940_info = {
 	.driver_module = THIS_MODULE,
 };
 
+static int ak09940_convert_axis(
+	s32 *pre_data, s32 *new_data,
+	u8 *axis_order, u8 *axis_sign)
+{
+	int i = 0;
+
+	if (pre_data == NULL) {
+		pr_err("[AK09940] %s pre data is NULL!!!\n", __func__);
+		return -1;
+	}
+	if (new_data == NULL) {
+		pr_err("[AK09940] %s new_data is NULL!!!\n", __func__);
+		return -1;
+	}
+	if (axis_order == NULL) {
+		pr_err("[AK09940] %s axis_order is NULL!!!\n", __func__);
+		return -1;
+	}
+	if (axis_sign == NULL) {
+		pr_err("[AK09940] %s axis_sign is NULL!!!\n", __func__);
+		return -1;
+	}
+	for (i = 0; i < 3; i++) {
+		for (i = 0; i < 3; i++) {
+			new_data = pre_data[axis_order[i]];
+			if (axis_sign[i])
+				new_data[i] *= -1;
+		}
+	}
+	return 0;
+}
+static void ak09940_read_and_event(struct iio_dev *indio_dev)
+{
+	struct ak09940_data *akm = iio_priv(indio_dev);
+	struct i2c_client   *client = akm->client;
+#ifdef AK09940_DEBUG
+	int i;
+#endif
+	u8 rdata[AK09940_READ_DATA_LENTH];
+	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
+	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
+	s32 *pevent;
+	s32 temp_event[3];
+
+	mutex_lock(&akm->buffer_mutex);
+	ak09940_i2c_read(client, AK09940_REG_ST1,
+		AK09940_READ_DATA_LENTH,
+		rdata);
+
+	memset(event, 0, sizeof(event));
+
+	event[0] = rdata[AK09940_ST1_POS];
+	event[1] = rdata[AK09940_ST2_POS];
+
+	pevent = &event[2];
+	/*  convert register data to magdata
+	 *  register data: 3 * 8bit
+	 *  magdata: 3 * 18bit
+	 */
+	ak09940_parse_raw_data_convert_q10(&rdata[AK09940_DATA_POS],
+					temp_event);
+	if (ak09940_data_check_overflow(temp_event)) {
+		akdbgprt("[AK09940] %s(%d)  read mag data overflow\n",
+				 __func__, __LINE__);
+	}
+	ak09940_convert_axis(temp_event, pevent,
+			akm->axis_order, akm->axis_sign);
+#ifdef AK09940_DEBUG
+	akdbgprt("[AK09940] %s mag, %04XH,%04XH,%04XH\n", __func__, *pevent,
+			 *pevent + 1, *pevent + 2);
+#endif
+
+#ifdef KERNEL_3_18_XX
+	iio_push_to_buffers_with_timestamp(indio_dev, event,
+							iio_get_time_ns());
+#else
+	iio_push_to_buffers_with_timestamp(indio_dev, event,
+						iio_get_time_ns(indio_dev));
+#endif
+
+	mutex_unlock(&akm->buffer_mutex);
+
+}
+static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
+{
+	struct ak09940_data *akm = iio_priv(indio_dev);
+	struct i2c_client   *client = akm->client;
+	u8 rdata[AK09940_READ_DATA_LENTH];
+	s64 now;
+	int i = 0;
+	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
+	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
+	s32 *pevent;
+	s32 temp_event[3];
+	s64 time_internal = 0;
+	s64 cur_time = 0;
+	int cur_mode = atomic_read(&akm->mode);
+
+#ifdef KERNEL_3_18_XX
+	now = iio_get_time_ns();
+#else
+	now = iio_get_time_ns(indio_dev);
+#endif
+	time_internal = (now - akm->prev_time_ns);
+	do_div(time_internal, akm->watermark);
+	mutex_lock(&akm->buffer_mutex);
+	for (i = 0; i < akm->watermark; i++) {
+		ak09940_i2c_read(client, AK09940_REG_ST1,
+			AK09940_READ_DATA_LENTH,
+			rdata);
+		if (!(rdata[AK09940_READ_DATA_LENTH - 1] &
+				AK09940_FIFO_INV_BIT_MASK)) {
+			akdbgprt("[AK09940] %s, fifo not ready!\n", __func__);
+			break;
+		}
+		if (cur_mode == AK09940_MODE_SELFTEST) {
+			ak09940_i2c_read(client, AK09940_REG_ST1,
+				AK09940_READ_DATA_LENTH,
+				rdata);
+			selftest_judgement(akm, rdata+1);
+			break;
+		}
+		memset(event, 0, sizeof(event));
+
+		event[0] = rdata[AK09940_ST1_POS];
+		event[1] = rdata[AK09940_ST2_POS];
+
+		pevent = &event[2];
+		/*  convert register data to magdata
+		 *  register data: 3 * 8bit
+		 *  magdata: 3 * 18bit
+		 */
+		ak09940_parse_raw_data_convert_q10(&rdata[AK09940_DATA_POS],
+			temp_event);
+		if (ak09940_data_check_overflow(temp_event)) {
+			akdbgprt(
+			"[AK09940] %s(%d)  read mag data overflow!!!!!!!!!\n",
+			__func__, __LINE__);
+		}
+		ak09940_convert_axis(temp_event, pevent,
+			akm->axis_order, akm->axis_sign);
+		cur_time = akm->prev_time_ns + time_internal * (i + 1);
+#ifdef AK09940_DEBUG
+	akdbgprt("[AK09940] %s mag, %04XH,%04XH,%04XH,time,%lld\n",
+			__func__, *pevent,
+			*pevent + 1, *pevent + 2,
+			cur_time);
+#endif
+		iio_push_to_buffers_with_timestamp(indio_dev, event, cur_time);
+	}
+	mutex_unlock(&akm->buffer_mutex);
+	akm->prev_time_ns = now;
+}
 /*****************************************************************************/
 static void ak09940_send_event(struct iio_dev *indio_dev)
 {
@@ -1100,64 +1220,43 @@ static void ak09940_send_event(struct iio_dev *indio_dev)
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 
-	akdbgprt("[AK09940] %s(%d)\n", __func__, __LINE__);
+	akdbgprt("[AK09940] %s(%d), watermark=%d\n",
+		__func__, __LINE__, akm->watermark);
 
-	mutex_lock(&akm->lock);
-	ak09940_i2c_read(client, AK09940_REG_ST1, AK09940_READ_DATA_LENTH,
-					 rdata);
-
-	memset(event, 0, sizeof(event));
-#ifdef AK09940_DEBUG
-	for (i = 0; i < AK09940_READ_DATA_LENTH; i++) {
-		akdbgprt("[AK09940] %s %d %02XH\n", __func__, i, rdata[i]);
-	}
-#endif
-
-	event[0] = rdata[AK09940_ST1_POS];
-	event[1] = rdata[AK09940_ST2_POS];
-
-	pevent = &event[2];
-	ak09940_parse_raw_data(&rdata[AK09940_DATA_POS], pevent);
-
-	if (ak09940_data_check_overflow(pevent)) {
-		akdbgprt("[AK09940] %s(%d)  read mag data overflow!!!!!!!!!\n",
-				 __func__, __LINE__);
-	}
-
-#ifdef AK09940_DEBUG
-	for (i = 0; i < AK09940_READ_DATA_LENTH - 1; i += 3) {
-		akdbgprt("[AK09940] %s %d %02XH,%02XH,%02XH\n", __func__, i,
-				 event[i],
-				 event[i + 1], event[i + 2]);
-	}
-#endif
-
-#ifdef AK09940_DEBUG
-	akdbgprt("[AK09940] %s mag, %04XH,%04XH,%04XH\n", __func__, *pevent,
-			 *pevent + 1, *pevent + 2);
-#endif
-
-#ifdef KERNEL_3_18_XX
-	iio_push_to_buffers_with_timestamp(indio_dev, event, iio_get_time_ns());
-#else
-	iio_push_to_buffers_with_timestamp(indio_dev, event,
-									   iio_get_time_ns(indio_dev));
-#endif
-
-	mutex_unlock(&akm->lock);
+	if (akm->watermark == 0)
+		ak09940_read_and_event(indio_dev);
+	else
+		ak09940_fifo_read_and_event(indio_dev);
 }
 
+/*****************************************************************************/
+static void ak09940_flush_handler(struct work_struct *work)
+{
+	struct ak09940_data *akm =
+		container_of(work, struct ak09940_data, flush_work);
+	struct iio_dev *indio_dev = iio_priv_to_dev(akm);
+
+	akdbgprt("%s called", __func__);
+
+	ak09940_send_event(indio_dev);
+}
+
+/*****************************************************************************/
 static irqreturn_t ak09940_handle_trigger(
 	int  irq,
 	void *p)
 {
 	const struct iio_poll_func *pf = p;
 	struct iio_dev			 *indio_dev = pf->indio_dev;
+	struct ak09940_data *akm = iio_priv(indio_dev);
 
-	akdbgprt("[AK09940] %s(%d), time:%lld\n", __func__, __LINE__, iio_get_time_ns(
-				 indio_dev));
+	akdbgprt("[AK09940] %s(%d), time:%lld\n",
+				__func__,
+				__LINE__,
+				iio_get_time_ns(indio_dev));
 
-	ak09940_send_event(indio_dev);
+	queue_work(akm->wq, &akm->flush_work);
+
 	iio_trigger_notify_done(indio_dev->trig);
 	return IRQ_HANDLED;
 }
@@ -1196,10 +1295,10 @@ static int ak09940_setup(struct i2c_client *client)
 		return -EIO;
 	}
 
-	if (akm->mode < ARRAY_SIZE(measurementModeRegTable)) {
+	if (atomic_read(&akm->mode) < ARRAY_SIZE(measurementModeRegTable)) {
 		ctnl3 = AK09940_WM_EN(akm->watermark_en) + AK09940_SDR(
 				akm->SDRbit) +
-			measurementModeRegTable[akm->mode];
+			measurementModeRegTable[atomic_read(&akm->mode)];
 	} else {
 		ctnl3 = 0;
 	}
@@ -1220,6 +1319,52 @@ static int ak09940_setup(struct i2c_client *client)
 	return 0;
 }
 
+static void ak09940_init_axis(struct ak09940_data *akm)
+{
+	struct device	  *dev;
+	struct device_node *np;
+	int				ret;
+	int i;
+
+	dev = &(akm->client->dev);
+	np = dev->of_node;
+
+	if (np) {
+		/* get from device node */
+		/* parameters are declared as 'unsigned char' */
+		/* if parameter cannot be get, use default value */
+		if (of_property_read_u8(np, "axis_order_x",
+					&akm->axis_order[0]) != 0)
+			goto SET_DEFAULT_AXIS;
+		if (of_property_read_u8(np, "axis_order_y",
+					&akm->axis_order[1]) != 0)
+			goto SET_DEFAULT_AXIS;
+		if (of_property_read_u8(np, "axis_order_z",
+					&akm->axis_order[2]) != 0)
+			goto SET_DEFAULT_AXIS;
+		if (of_property_read_u8(np, "axis_sign_x",
+					&akm->axis_sign[0]) != 0)
+			goto SET_DEFAULT_AXIS;
+		if (of_property_read_u8(np, "axis_sign_y",
+					&akm->axis_sign[1]) != 0)
+			goto SET_DEFAULT_AXIS;
+		if (of_property_read_u8(np, "axis_sign_z",
+					&akm->axis_sign[2]) != 0)
+			goto SET_DEFAULT_AXIS;
+	}
+	dev_dbg(dev, "%s : axis=[%d,%d,%d] sign=[%d,%d,%d]", __func__,
+		akm->axis_order[0], akm->axis_order[1], akm->axis_order[2],
+		akm->axis_sign[0], akm->axis_sign[1], akm->axis_sign[2]);
+	return;
+SET_DEFAULT_AXIS:
+	dev_dbg(dev, "%s : set default axis", __func__);
+	/* set default axis value */
+	for (i = 0; i < 3; i++) {
+		akm->axis_order[i] = i;
+		akm->axis_sign[i] = 0;
+	}
+}
+
 static int ak09940_parse_dt(struct ak09940_data *ak09940)
 {
 	struct device	  *dev;
@@ -1229,9 +1374,8 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	dev = &(ak09940->client->dev);
 	np = dev->of_node;
 
-	if (!np) {
+	if (!np)
 		return -EINVAL;
-	}
 
 	ak09940->rstn_gpio = of_get_named_gpio(np, "ak09940,rst_gpio", 0);
 
@@ -1256,38 +1400,39 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	ret = of_property_read_u8(np, "ak09940,opetation_mode", &ak09940->mode);
 
 	if (ret && (ret != -EINVAL)) {
-		ak09940->mode = 0;
+		atomic_set(&ak09940->mode, AK09940_MODE_PDN);
 		akdbgprt("[AK09940] %s mode(error) = %d\n", __func__,
 				 ak09940->mode);
 	} else {
-		if (ak09940->mode > AK09940_MODE_NUM - 1) {
-			ak09940->mode = AK09940_MODE_CONT_400HZ;
-		}
+		if (atomic_read(&ak09940->mode) > AK09940_MODE_NUM - 1)
+			atomic_set(&ak09940->mode, AK09940_MODE_CONT_400HZ);
 	}
 
-	ret =
-		of_property_read_u8(np, "ak09940,drive_setting",
+	ret = of_property_read_u8(np,
+							"ak09940,drive_setting",
 							&ak09940->SDRbit);
 
-	if (ret && (ret != -EINVAL)) {
+	if (ret && (ret != -EINVAL))
 		ak09940->SDRbit = 0;
-	}
 
-	ret = of_property_read_u8(np, "ak09940,watermark", &ak09940->watermark);
+	ret = of_property_read_u8(np,
+							"ak09940,watermark",
+							&ak09940->watermark);
 
-	if (ret && (ret != -EINVAL)) {
+	if (ret && (ret != -EINVAL))
 		ak09940->watermark = 0;
-	}
 
-	if (ak09940->watermark != 0) {
+	if (ak09940->watermark != 0)
 		ak09940->watermark_en = 1;
-	}
 
-	ret = of_property_read_u8(np, "ak09940,temperature", &ak09940->TEMPbit);
+	ret = of_property_read_u8(np,
+							"ak09940,temperature",
+							&ak09940->TEMPbit);
 
-	if (ret && (ret != -EINVAL)) {
+	if (ret && (ret != -EINVAL))
 		ak09940->TEMPbit = 0;
-	}
+
+	ak09940_init_axis(ak09940);
 
 	return 0;
 }
@@ -1297,7 +1442,6 @@ static int ak09940_set_trigger_state(
 	bool			   state)
 {
 	pr_err("%s called. st=%s", __func__, (state ? "true" : "false"));
-
 	return 0;
 }
 
@@ -1323,9 +1467,8 @@ static int ak09940_probe(
 	/* Register with IIO */
 	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*akm));
 
-	if (indio_dev == NULL) {
+	if (indio_dev == NULL)
 		return -ENOMEM;
-	}
 
 	akm = iio_priv(indio_dev);
 	i2c_set_clientdata(client, indio_dev);
@@ -1334,12 +1477,16 @@ static int ak09940_probe(
 
 	akm->numMode = ARRAY_SIZE(measurementModeRegTable);
 
-	akm->int_gpio =
-		of_get_named_gpio(client->dev.of_node, "ak09940,int_gpio", 0);
+	akm->int_gpio = of_get_named_gpio(
+						client->dev.of_node,
+						"ak09940,int_gpio",
+						0);
 
 	if (gpio_is_valid(akm->int_gpio)) {
-		err = devm_gpio_request_one(&client->dev, akm->int_gpio,
-									GPIOF_IN, "ak09940_int");
+		err = devm_gpio_request_one(&client->dev,
+							akm->int_gpio,
+							GPIOF_IN,
+							"ak09940_int");
 
 		if (err < 0) {
 			dev_err(&client->dev,
@@ -1358,18 +1505,19 @@ static int ak09940_probe(
 				"[AK09940] Device Tree Setting was not found!\n");
 	}
 
-	if (id) {
+	if (id)
 		name = id->name;
-	}
 
 	if (akm->irq) {
 		akm->trig = iio_trigger_alloc(
 				"%s-dev%d",
 				name, indio_dev->id);
-		err = devm_request_irq(&client->dev, akm->irq,
-							   iio_trigger_generic_data_rdy_poll,
-							   IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-							   dev_name(&client->dev), akm->trig);
+		err = devm_request_irq(&client->dev,
+					akm->irq,
+					iio_trigger_generic_data_rdy_poll,
+					IRQF_TRIGGER_RISING,
+					dev_name(&client->dev),
+					akm->trig);
 
 		if (err) {
 			dev_err(&client->dev,
@@ -1400,7 +1548,16 @@ static int ak09940_probe(
 		return err;
 	}
 
-	mutex_init(&akm->lock);
+	mutex_init(&akm->buffer_mutex);
+	mutex_init(&akm->fifo_mutex);
+
+	INIT_WORK(&akm->flush_work, ak09940_flush_handler);
+	akm->wq = create_singlethread_workqueue("ak09940");
+	if (akm->wq == NULL) {
+		dev_err(dev, "%s: create single thread wq failed.", __func__);
+		goto err_create_thread_wq;
+	}
+
 	indio_dev->dev.parent = &client->dev;
 	indio_dev->channels = ak09940_channels;
 	indio_dev->num_channels = ARRAY_SIZE(ak09940_channels);
@@ -1408,27 +1565,34 @@ static int ak09940_probe(
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->name = name;
 
-	err = iio_triggered_buffer_setup(indio_dev, NULL,
-									 ak09940_handle_trigger,
-									 NULL);
+	err = iio_triggered_buffer_setup(indio_dev,
+						NULL,
+						ak09940_handle_trigger,
+						NULL);
 
 	if (err) {
 		dev_err(&client->dev, "triggered buffer setup failed\n");
 		return err;
 	}
 
-	akdbgprt("[AK09940] %s(iio_triggered_buffer_setup=%d)\n", __func__,
+	akdbgprt("[AK09940] %s(iio_triggered_buffer_setup=%d)\n",
+			__func__,
 			 err);
 
 	err = iio_device_register(indio_dev);
 
-	if (err) {
+	if (err)
 		dev_err(&client->dev, "device register failed\n");
-	}
 
-	akdbgprt("[AK09940] %s(iio_device_register=%d)\n", __func__, err);
-
+	akdbgprt("[AK09940] %s(iio_device_register=%d)\n",
+			__func__,
+			err);
 	return err;
+err_create_thread_wq:
+	if (akm->wq)
+		destroy_workqueue(akm->wq);
+
+	return ERR_PTR(err);
 }
 
 static int ak09940_remove(struct i2c_client *client)
@@ -1444,7 +1608,7 @@ static int ak09940_remove(struct i2c_client *client)
 
 	if (akm->rstn_gpio > 0) {
 		gpio_set_value(akm->rstn_gpio, 0);
-		msleep(1);
+		msleep(20);
 		gpio_free(akm->rstn_gpio);
 	}
 
@@ -1460,9 +1624,8 @@ static int ak09940_i2c_suspend(struct device *dev)
 
 	ak09940_i2c_write(i2c, AK09940_REG_CNTL3, 0);
 
-	if (akm->rstn_gpio > 0) {
+	if (akm->rstn_gpio > 0)
 		gpio_set_value(akm->rstn_gpio, 0);
-	}
 
 	return 0;
 }
@@ -1489,8 +1652,8 @@ static const struct i2c_device_id ak09940_id[] = {
 MODULE_DEVICE_TABLE(i2c, ak09940_id);
 
 static const struct of_device_id ak09940_of_match[] = {
-	{ .compatible = "akm,ak09940"},
-	{}
+	{ .compatible = "asahi-kasei,ak09940"},
+	{},
 };
 MODULE_DEVICE_TABLE(of, ak09940_of_match);
 
