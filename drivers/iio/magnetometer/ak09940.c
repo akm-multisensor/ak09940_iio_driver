@@ -372,9 +372,8 @@ static int ak09940_set_mode_measure(
 		cntl1_value = AK09940_WM(akm->watermark);
 		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
 								  cntl1_value);
-		if (error) {
+		if (error)
 			return error;
-		}
 	}
 
 	/*set TEMP enable*/
@@ -382,9 +381,8 @@ static int ak09940_set_mode_measure(
 		cntl2_value = 0x40;
 		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL2,
 								  cntl2_value);
-		if (error) {
+		if (error)
 			return error;
-		}
 	}
 
 	if (atomic_cmpxchg(&akm->mode,
