@@ -372,6 +372,9 @@ static int ak09940_set_mode_measure(
 		cntl1_value = AK09940_WM(akm->watermark);
 		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
 								  cntl1_value);
+		if (error) {
+			return error;
+		}
 	}
 
 	/*set TEMP enable*/
@@ -379,6 +382,9 @@ static int ak09940_set_mode_measure(
 		cntl2_value = 0x40;
 		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL2,
 								  cntl2_value);
+		if (error) {
+			return error;
+		}
 	}
 
 	if (atomic_cmpxchg(&akm->mode,
@@ -416,7 +422,6 @@ static int ak09940_set_mode_measure(
 	} else {
 		atomic_set(&akm->mode, mode);
 	}
-
 	return error;
 }
 
@@ -794,7 +799,6 @@ static ssize_t attr_watermark_store(
 	int error = 0;
 
 	akdbgprt("[AK09940] %s called, buf=%s", __func__, buf);
-	/*watermark = simple_strtol(buf, NULL, 10);*/
 	error = kstrtol(buf, 10, &watermark);
 	if (error)
 		return error;
@@ -802,10 +806,9 @@ static ssize_t attr_watermark_store(
 	if (akm->watermark == watermark)
 		return count;
 
-	akm->watermark = watermark;
 	error =
 		ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
-						  akm->watermark);
+						  watermark);
 
 	if (error) {
 		dev_err(&akm->client->dev,
@@ -813,13 +816,10 @@ static ssize_t attr_watermark_store(
 				__func__);
 		return error;
 	}
-
-	akdbgprt("[AK09940] %s called, watermark=%d, watermark_en = %d",
-			 __func__, akm->watermark, akm->watermark_en);
+	akm->watermark = watermark;
 
 	if (akm->watermark == 0) {
 		if (akm->watermark_en != 0) {
-			akm->watermark_en = 0;
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 				AK09940_SDR(
 					akm->SDRbit) + atomic_read(&akm->mode);
@@ -831,10 +831,10 @@ static ssize_t attr_watermark_store(
 				atomic_set(&akm->mode, AK09940_MODE_PDN);
 				return error;
 			}
+			akm->watermark_en = 0;
 		}
 	} else {
 		if (akm->watermark_en == 0) {
-			akm->watermark_en = 1;
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 				AK09940_SDR(
 					akm->SDRbit) + atomic_read(&akm->mode);
@@ -846,6 +846,7 @@ static ssize_t attr_watermark_store(
 				atomic_set(&akm->mode, AK09940_MODE_PDN);
 				return error;
 			}
+			akm->watermark_en = 1;
 		}
 	}
 
@@ -1507,11 +1508,22 @@ static int ak09940_probe(
 
 	if (id)
 		name = id->name;
+	err = ak09940_setup(client);
+
+	if (err < 0) {
+		dev_err(&client->dev, "%s initialization fails\n", name);
+		goto err_setup;
+		return err;
+	}
 
 	if (akm->irq) {
 		akm->trig = iio_trigger_alloc(
 				"%s-dev%d",
 				name, indio_dev->id);
+		if (!akm->trig) {
+			err = -ENOMEM;
+			goto err_trigger_alloc;
+		}
 		err = devm_request_irq(&client->dev,
 					akm->irq,
 					iio_trigger_generic_data_rdy_poll,
@@ -1523,6 +1535,7 @@ static int ak09940_probe(
 			dev_err(&client->dev,
 					"[AK09940] devm_request_irq Error! err=%d\n",
 					err);
+			goto err_request_irq;
 		}
 
 		akm->trig->dev.parent = dev;
@@ -1535,18 +1548,13 @@ static int ak09940_probe(
 			dev_err(&client->dev,
 					"[AK09940] iio_trigger_register Error! err=%d\n",
 					err);
+			goto err_trigger_register;
 		} else {
 			indio_dev->trig = akm->trig;
 		}
 	}
 
 
-	err = ak09940_setup(client);
-
-	if (err < 0) {
-		dev_err(&client->dev, "%s initialization fails\n", name);
-		return err;
-	}
 
 	mutex_init(&akm->buffer_mutex);
 	mutex_init(&akm->fifo_mutex);
@@ -1572,6 +1580,7 @@ static int ak09940_probe(
 
 	if (err) {
 		dev_err(&client->dev, "triggered buffer setup failed\n");
+		goto err_iio_buffer_setup;
 		return err;
 	}
 
@@ -1581,16 +1590,34 @@ static int ak09940_probe(
 
 	err = iio_device_register(indio_dev);
 
-	if (err)
+	if (err) {
 		dev_err(&client->dev, "device register failed\n");
+		goto err_iio_device_register;
+	}
 
 	akdbgprt("[AK09940] %s(iio_device_register=%d)\n",
 			__func__,
 			err);
 	return err;
+err_iio_device_register:
+	iio_triggered_buffer_cleanup(indio_dev);
+err_iio_buffer_setup:
+	if (akm->irq)
+		iio_trigger_unregister(akm->trig);
+
 err_create_thread_wq:
 	if (akm->wq)
 		destroy_workqueue(akm->wq);
+err_trigger_register:
+	if (akm->irq)
+		devm_free_irq(dev, akm->irq, akm);
+err_request_irq:
+	if (akm->irq)
+		iio_trigger_free(akm->trig);
+
+err_trigger_alloc:
+err_setup:
+	iio_device_free(indio_dev);
 
 	return ERR_PTR(err);
 }
