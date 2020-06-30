@@ -1529,7 +1529,6 @@ static int ak09940_probe(
 	if (err < 0) {
 		dev_err(&client->dev, "%s initialization fails\n", name);
 		goto err_setup;
-		return err;
 	}
 
 	if (akm->irq) {
@@ -1597,7 +1596,6 @@ static int ak09940_probe(
 	if (err) {
 		dev_err(&client->dev, "triggered buffer setup failed\n");
 		goto err_iio_buffer_setup;
-		return err;
 	}
 
 	akdbgprt(dev, "[AK09940] %s(iio_triggered_buffer_setup=%d)\n",
