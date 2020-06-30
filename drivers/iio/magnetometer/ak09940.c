@@ -563,7 +563,6 @@ static ssize_t attr_setting_reg_store(
 		if ((pt_count == 0) ||
 			((val[0] >= AK09940_REG_CNTL1) &&
 			 (val[0] <= AK09940_REG_CNTL3))) {
-			/*val[pt_count] = simple_strtol(p, NULL, 10); */
 			ret = kstrtol(p, 10, &temp);
 			if (ret)
 				goto KSTRTOL_ERR;
@@ -767,7 +766,6 @@ static ssize_t attr_continuous_store(
 	int ret = 0;
 
 	akdbgprt("[AK09940] %s called, buf=%s", __func__, buf);
-	/*interval = simple_strtol(buf, NULL, 10);*/
 	ret = kstrtol(buf, 10, &interval);
 	if (ret)
 		return ret;
