@@ -150,23 +150,18 @@ enum {
  *6 : Measurement Mode 6
  */
 
-static int measurementFreqTable[] = {
-	0,
-	10,
-	20,
-	50,
-	100,
-	200,
-	400
-};
-static int measurementModeRegTable[] = {
-	AK09940_MODE_PDN,
-	AK09940_MODE_CONT_10HZ,
-	AK09940_MODE_CONT_20HZ,
-	AK09940_MODE_CONT_50HZ,
-	AK09940_MODE_CONT_100HZ,
-	AK09940_MODE_CONT_200HZ,
-	AK09940_MODE_CONT_400HZ,
+typedef struct FreqModeTable {
+	int freq;
+	int reg;
+}FreqModeTableStruct;
+static struct FreqModeTable measurementFreqModeTable[] = {
+	{0, 	AK09940_MODE_PDN},
+	{10, 	AK09940_MODE_CONT_10HZ},
+	{20, 	AK09940_MODE_CONT_20HZ},
+	{50, 	AK09940_MODE_CONT_50HZ},
+	{100, 	AK09940_MODE_CONT_100HZ},
+	{200, 	AK09940_MODE_CONT_200HZ},
+	{400, 	AK09940_MODE_CONT_400HZ}
 };
 
 
@@ -186,8 +181,9 @@ struct ak09940_data {
 	/* this value represents current operation mode.
 	 *  this value should be one of measurementModeRegTable
 	 */
-	atomic_t				mode;
-	s16				numMode;
+	atomic_t			mode;
+	struct FreqModeTable	*freqmodeTable;
+	u8				 freq_num;
 
 	u8				 SDRbit;
 	u8				 selftest;
@@ -202,9 +198,7 @@ struct ak09940_data {
 
 	s32				test_lolim[3];
 	s32				test_hilim[3];
-	int				*freq_table;
-	int				*modeReg_table;
-	u8				 freq_num;
+
 
 	/* previous timestamp [nsec] */
 	s64				prev_time_ns;
@@ -348,7 +342,7 @@ static int ak09940_check_measurement_mode(
 		return 0;
 
 	for (i = 0; i < akm->freq_num; i++) {
-		if (akm->modeReg_table[i] == mode)
+		if (akm->freqmodeTable[i].reg == mode)
 			return 0;
 	}
 
@@ -452,10 +446,10 @@ static int ak09940_get_continue_mode_by_interval(
 
 	freq = 1000 / interval;
 
-	while ((freq > measurementFreqTable[n]) && (n < (akm->numMode - 1)))
+	while ((freq > akm->freqmodeTable[n].freq) && (n < (akm->freq_num - 1)))
 		n++;
 
-	mode = measurementModeRegTable[n];
+	mode = akm->freqmodeTable[n].reg;
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s mode = %d\n", __func__, mode);
 
@@ -606,7 +600,7 @@ static ssize_t attr_setting_reg_store(
 			new_mode = (val[1] & AK09940_MODE_MASK) >>
 				AK09940_MODE_SHIFT;
 
-			while (new_mode != measurementModeRegTable[i]) {
+			while (new_mode != akm->freqmodeTable[i].reg) {
 				i++;
 				continue;
 			}
@@ -1316,10 +1310,10 @@ static int ak09940_setup(struct i2c_client *client)
 		return -EIO;
 	}
 
-	if (atomic_read(&akm->mode) < ARRAY_SIZE(measurementModeRegTable)) {
+	if (atomic_read(&akm->mode) < ARRAY_SIZE(measurementFreqModeTable)) {
 		ctnl3 = AK09940_WM_EN(akm->watermark_en) + AK09940_SDR(
 				akm->SDRbit) +
-			measurementModeRegTable[atomic_read(&akm->mode)];
+			measurementFreqModeTable[atomic_read(&akm->mode)].reg;
 	} else {
 		ctnl3 = 0;
 	}
@@ -1334,9 +1328,8 @@ static int ak09940_setup(struct i2c_client *client)
 	akm->test_hilim[1] = AK09940_TEST_HILIM_Y;
 	akm->test_hilim[2] = AK09940_TEST_HILIM_Z;
 
-	akm->freq_table = measurementFreqTable;
-	akm->modeReg_table = measurementModeRegTable;
-	akm->freq_num = ARRAY_SIZE(measurementFreqTable);
+	akm->freqmodeTable = measurementFreqModeTable;
+	akm->freq_num = ARRAY_SIZE(measurementFreqModeTable);
 	return 0;
 }
 
@@ -1491,8 +1484,6 @@ static int ak09940_probe(
 	i2c_set_clientdata(client, indio_dev);
 
 	akm->client = client;
-
-	akm->numMode = ARRAY_SIZE(measurementModeRegTable);
 
 	akm->int_gpio = of_get_named_gpio(
 		client->dev.of_node,
