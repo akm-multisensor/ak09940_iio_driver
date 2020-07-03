@@ -120,7 +120,7 @@
 #define AK09940_MODE_MASK			0x1F
 #define AK09940_MODE_SHIFT			0
 
-#define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
+#define AK09940_DATA_OVERFLOW_VALUE_Q10		(0x1FFFF<<10)
 
 #define AK09940_PDN_TO_OTHER_MODE_DELAY	1
 
@@ -487,7 +487,7 @@ static int ak09940_parse_raw_data_convert_q10(
 
 static int ak09940_one_axis_data_check_overflow(s32 data)
 {
-	if (data == AK09940_DATA_OVERFLOW_VALUE)
+	if (data == AK09940_DATA_OVERFLOW_VALUE_Q10)
 		return 1;
 	else
 		return 0;
