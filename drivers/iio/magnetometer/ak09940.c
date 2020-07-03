@@ -463,10 +463,10 @@ static int ak09940_parse_raw_data_convert_q10(
 	int i = 0;
 
 	if (reg == NULL)
-		return -1;
+		return -EINVAL;
 
 	if (mag == NULL)
-		return -1;
+		return -EINVAL;
 
 	/* Store data (uT) */
 	for (i = 0; i < 3; i++) {
