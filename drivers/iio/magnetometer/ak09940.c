@@ -127,7 +127,7 @@
 /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
 #define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
 
-#define AK09940_FIFO_INV_BIT_MASK		0x04
+#define AK09940_FIFO_INV_BIT_MASK		0x02
 
 #define NUM_OF_AXIS				3
 
@@ -1183,8 +1183,8 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		ak09940_i2c_read(client, AK09940_REG_ST1,
 			AK09940_READ_DATA_LENGTH,
 			rdata);
-		if (!(rdata[AK09940_READ_DATA_LENGTH - 1] &
-				AK09940_FIFO_INV_BIT_MASK)) {
+		if (rdata[AK09940_READ_DATA_LENGTH - 1] &
+				AK09940_FIFO_INV_BIT_MASK) {
 			dev_err(&client->dev,
 				"[AK09940] %s, fifo not ready!\n", __func__);
 			break;
