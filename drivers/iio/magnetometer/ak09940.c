@@ -50,7 +50,7 @@
  */
 
 #ifdef AK09940_DEBUG
-#define akdbgprt(s, ...) (dev_dbg(s, ##__VA_ARGS__))
+#define akdbgprt dev_dbg
 #else
 #define akdbgprt(format, arg ...)  do {} while (0)
 #endif
