@@ -526,7 +526,7 @@ static ssize_t attr_setting_reg_show(
 	dev_info(dev, "[AK09940] CNTL1(31H)=%XH", (int)cntl[1]);
 	dev_info(dev, "[AK09940] CNTL1(32H)=%XH", (int)cntl[2]);
 
-	return snprintf(buf, 9, "%02X,%02x,%02x\n", cntl[0], cntl[1], cntl[2]);
+	return snprintf(buf, 10, "%02X,%02x,%02x\n", cntl[0], cntl[1], cntl[2]);
 }
 
 static ssize_t attr_setting_reg_store(
@@ -664,7 +664,7 @@ static ssize_t attr_data_reg_show(
 			__func__);
 	}
 	result[0] &= 0x3FF;
-	return snprintf(buf, 15, "%04X,%04x,%04x\n", mag[0], mag[1], mag[2]);
+	return snprintf(buf, 16, "%04X,%04x,%04x\n", mag[0], mag[1], mag[2]);
 }
 
 static IIO_DEVICE_ATTR(data_reg,
@@ -732,7 +732,7 @@ static ssize_t attr_selftest_show(
 		(s32)mag[0], (s32)mag[1], (s32)mag[2]);
 
 	selftest_judgement(akm, mag);
-	return snprintf(buf, 5, "pass\n");
+	return snprintf(buf, 6, "pass\n");
 }
 
 static IIO_DEVICE_ATTR(selftest,
