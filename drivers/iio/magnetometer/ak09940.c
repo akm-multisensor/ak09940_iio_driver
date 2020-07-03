@@ -663,8 +663,8 @@ static ssize_t attr_data_reg_show(
 			"[AK09940] %s read mag data overflow!!!!!!!!!",
 			__func__);
 	}
-	result[0] &= 0x3FF;
-	return snprintf(buf, 16, "%04X,%04x,%04x\n", mag[0], mag[1], mag[2]);
+	return snprintf(buf, 34, "%02x,%08X,%08x,%08x,%02x\n", 
+		result[AK09940_ST1_POS], mag[0], mag[1], mag[2], result[AK09940_ST2_POS]);
 }
 
 static IIO_DEVICE_ATTR(data_reg,
