@@ -120,7 +120,7 @@
 #define AK09940_MODE_MASK			0x1F
 #define AK09940_MODE_SHIFT			0
 
-#define AK09940_DATA_OVERFLOW_VALUE_Q10		(0x1FFFF<<10)
+#define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
 
 #define AK09940_PDN_TO_OTHER_MODE_DELAY	1
 
@@ -131,7 +131,7 @@
 
 #define NUM_OF_AXIS				3
 
-#define AK09940_RAW_DATA_TO_Q10(x)		(x << 10)
+#define RAW_DATA_TO_Q10(x)		(x << 10)
 
 enum {
 	AK09940_ST1_POS = 0,
@@ -456,7 +456,7 @@ static int ak09940_get_continue_mode_by_interval(
 	return mode;
 }
 
-static int ak09940_parse_raw_data_convert_q10(
+static int ak09940_parse_raw_data(
 	u8  *reg,
 	s32 *mag)
 {
@@ -475,19 +475,13 @@ static int ak09940_parse_raw_data_convert_q10(
 			(((uint32_t)reg[i * 3 + 2] << 24) |
 			 ((uint32_t)reg[i * 3 + 1] << 16) |
 			 ((uint32_t)reg[i * 3] << 8)) >> 8;
-		/* convert to Q10 data
-		 * real data is 18bit, so we use Q10
-		 */
-		AK09940_RAW_DATA_TO_Q10(*(mag + i));
 	}
-
-
 	return 0;
 }
 
 static int ak09940_one_axis_data_check_overflow(s32 data)
 {
-	if (data == AK09940_DATA_OVERFLOW_VALUE_Q10)
+	if (data == AK09940_DATA_OVERFLOW_VALUE)
 		return 1;
 	else
 		return 0;
@@ -656,7 +650,7 @@ static ssize_t attr_data_reg_show(
 	if (ret < 0)
 		return ret;
 
-	ak09940_parse_raw_data_convert_q10(&result[AK09940_DATA_POS], mag);
+	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
 
 	if (ak09940_data_check_overflow(mag)) {
 		dev_err(dev,
@@ -727,7 +721,7 @@ static ssize_t attr_selftest_show(
 	if (ret < 0)
 		return ret;
 
-	ak09940_parse_raw_data_convert_q10(&result[AK09940_DATA_POS], mag);
+	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
 	akdbgprt(dev, "[AK09940] mag[X,Y,Z]=[%d,%d,%d]\n",
 		(s32)mag[0], (s32)mag[1], (s32)mag[2]);
 
@@ -1108,6 +1102,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 	s32 temp_event[3];
+	int j=0;
 
 	mutex_lock(&akm->buffer_mutex);
 	ak09940_i2c_read(client, AK09940_REG_ST1,
@@ -1124,12 +1119,19 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 *  register data: 3 * 8bit
 	 *  magdata: 3 * 18bit
 	 */
-	ak09940_parse_raw_data_convert_q10(&rdata[AK09940_DATA_POS],
+	ak09940_parse_raw_data(&rdata[AK09940_DATA_POS],
 					temp_event);
 	if (ak09940_data_check_overflow(temp_event)) {
 		dev_err(&client->dev,
 			"[AK09940] %s(%d)  read mag data overflow\n",
 			 __func__, __LINE__);
+	}
+	/*  convert data to Q10 format
+	 *  register data is 18bit
+	 *  so we use Q10 format here
+	 */
+	for (j=0; j<3; j++) {
+		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j])
 	}
 	ak09940_convert_axis(temp_event, pevent,
 			akm->axis_order, akm->axis_sign);
@@ -1157,6 +1159,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 	u8 rdata[AK09940_READ_DATA_LENGTH];
 	s64 now;
 	int i = 0;
+	int j = 0;
 	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
@@ -1200,8 +1203,15 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		 *  register data: 3 * 8bit
 		 *  magdata: 3 * 18bit
 		 */
-		ak09940_parse_raw_data_convert_q10(&rdata[AK09940_DATA_POS],
+		ak09940_parse_raw_data(&rdata[AK09940_DATA_POS],
 			temp_event);
+		/*  convert data to Q10 format
+		 *  register data is 18bit
+		 *  so we use Q10 format here
+		 */
+		for (j=0; j<3; j++) {
+			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j])
+		}
 		if (ak09940_data_check_overflow(temp_event)) {
 			dev_err(&client->dev,
 			"[AK09940] %s(%d)  read mag data overflow!!!!!!!!!\n",
