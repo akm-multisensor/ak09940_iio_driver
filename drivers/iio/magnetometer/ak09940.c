@@ -455,6 +455,21 @@ static int ak09940_get_continue_mode_by_interval(
 
 	return mode;
 }
+static int ak09940_get_samp_freq(
+	struct ak09940_data *akm, 
+	int mode)
+{
+
+	u8 i;
+	/* -1 means unknown. e.g. selftest mode etc. */
+	int freq = -1;
+
+	for(i=0; i<akm->freq_num; i++) {
+		if (mode == akm->freqmodeTable[i].reg) 
+			freq = akm->freqmodeTable[i].freq;
+	}
+	return freq;
+}
 
 static int ak09940_parse_raw_data(
 	u8  *reg,
@@ -980,6 +995,7 @@ static int ak09940_read_raw(
 	int				 readValue;
 	int				 ret;
 	u8				  cntlValue;
+	int 				mode = 0;
 
 	akdbgprt(&akm->client->dev,
 		"%s called (index=%d)", __func__, chan->scan_index);
@@ -1000,14 +1016,10 @@ static int ak09940_read_raw(
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		readValue = ak09940_i2c_read(akm->client,
-						AK09940_REG_CNTL3,
-						1,
-						&cntlValue);
-		readValue &= 0x0F;
-		pr_info("[AK09940] %s : mode=%d, MODEbits=%X\n", __func__,
-				atomic_read(&akm->mode), cntlValue);
-		*val = atomic_read(&akm->mode);
+		mode = atomic_read(&akm->mode);
+		*val = ak09940_get_samp_freq(akm, mode);
+		pr_info("[AK09940] %s : mode=%x, freq=%d\n", __func__,
+				mode, *val );
 		return IIO_VAL_INT;
 	}
 
