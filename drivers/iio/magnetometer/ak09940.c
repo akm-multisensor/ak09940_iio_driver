@@ -1510,7 +1510,7 @@ static int ak09940_probe(
 			dev_err(&client->dev,
 				"AK09940] failed to request GPIO %d, error %d\n",
 				akm->int_gpio, err);
-			return err;
+			goto err_gpio_request_one;
 		}
 	}
 
@@ -1614,13 +1614,13 @@ static int ak09940_probe(
 	return err;
 err_iio_device_register:
 	iio_triggered_buffer_cleanup(indio_dev);
-err_iio_buffer_setup:
-	if (akm->irq)
-		iio_trigger_unregister(akm->trig);
 
-err_create_thread_wq:
+err_iio_buffer_setup:
 	if (akm->wq)
 		destroy_workqueue(akm->wq);
+err_create_thread_wq:
+	if (akm->irq)
+		iio_trigger_unregister(akm->trig);
 err_trigger_register:
 	if (akm->irq)
 		devm_free_irq(dev, akm->irq, akm);
@@ -1630,6 +1630,7 @@ err_request_irq:
 
 err_trigger_alloc:
 err_setup:
+err_gpio_request_one:
 	iio_device_free(indio_dev);
 
 	return ERR_PTR(err);
