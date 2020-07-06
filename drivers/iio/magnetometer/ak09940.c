@@ -1401,24 +1401,42 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	if (!np)
 		return -EINVAL;
 
+	/* init RST pin */
 	ak09940->rstn_gpio = of_get_named_gpio(np, "ak09940,rst_gpio", 0);
-
 	if (ak09940->rstn_gpio < 0) {
 		dev_err(dev, "[AK09940] %s : rstn gpio is null\n", __func__);
 		ak09940->rstn_gpio = -1;
 	} else {
-		if (!gpio_is_valid(ak09940->rstn_gpio)) {
-			dev_err(dev, "AK09940 rstn pin(%u) is valid\n",
-				   ak09940->rstn_gpio);
-			ak09940->rstn_gpio = -1;
-		} else {
-			ret = gpio_request(ak09940->rstn_gpio, "ak09940 rstn");
-			akdbgprt(dev, "[AK09940] %s : gpio_request ret = %d\n",
+		ret = gpio_request(ak09940->rstn_gpio, "ak09940 rstn");
+		if (ret < 0) {
+			akdbgprt(dev, 
+				"[AK09940] %s : gpio_request ret = %d\n",
 				__func__, ret);
-			gpio_direction_output(ak09940->rstn_gpio, 0);
+			ak09940->rstn_gpio = -1;
+			return ret;
 		}
+		gpio_direction_output(ak09940->rstn_gpio, 0);
 	}
-
+	
+	/* init INT pin */
+	ak09940->int_gpio = of_get_named_gpio(np, "ak09940,int_gpio", 0);
+	if (ak09940->int_gpio < 0) {
+		dev_err(dev, "[AK09940] %s : rstn gpio is null\n", __func__);
+		ak09940->int_gpio = -1;
+	} else {
+		ret = devm_gpio_request_one(dev,
+			ak09940->int_gpio,
+			GPIOF_IN,
+			"ak09940_int");
+		if (ret < 0) {
+			akdbgprt(dev, 
+				"[AK09940] %s : gpio_request ret = %d\n",
+				__func__, ret);
+			ak09940->int_gpio = -1;
+			return ret;
+		}
+		ak09940->irq = gpio_to_irq(ak09940->int_gpio);
+	}
 
 	ret = of_property_read_u8(np, "ak09940,opetation_mode", &ak09940->mode);
 
@@ -1494,33 +1512,14 @@ static int ak09940_probe(
 	i2c_set_clientdata(client, indio_dev);
 
 	akm->client = client;
-
-	akm->int_gpio = of_get_named_gpio(
-		client->dev.of_node,
-		"ak09940,int_gpio",
-		0);
-
-	if (gpio_is_valid(akm->int_gpio)) {
-		err = devm_gpio_request_one(&client->dev,
-			akm->int_gpio,
-			GPIOF_IN,
-			"ak09940_int");
-
-		if (err < 0) {
-			dev_err(&client->dev,
-				"AK09940] failed to request GPIO %d, error %d\n",
-				akm->int_gpio, err);
-			goto err_gpio_request_one;
-		}
-	}
-
-	akm->irq = gpio_to_irq(akm->int_gpio);
-
+	
 	err = ak09940_parse_dt(akm);
-
-	if (err < 0) {
+	if (err == -EINVAL) {
 		dev_err(&client->dev,
 			"[AK09940] Device Tree Setting was not found!\n");
+	}
+	if ((akm->int_gpio == -1) || (akm->rstn_gpio == -1)) {
+		goto err_gpio_request_one;
 	}
 
 	if (id)
