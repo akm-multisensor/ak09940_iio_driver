@@ -1143,7 +1143,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 *  so we use Q10 format here
 	 */
 	for (j=0; j<3; j++) {
-		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j])
+		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
 	}
 	ak09940_convert_axis(temp_event, pevent,
 			akm->axis_order, akm->axis_sign);
@@ -1222,7 +1222,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		 *  so we use Q10 format here
 		 */
 		for (j=0; j<3; j++) {
-			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j])
+			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
 		}
 		if (ak09940_data_check_overflow(temp_event)) {
 			dev_err(&client->dev,
