@@ -1343,12 +1343,19 @@ static int ak09940_setup(struct i2c_client *client)
 	return 0;
 }
 
+static void ak09940_set_default_axis(struct ak09940_data *akm)
+{
+	int i;
+	for (i = 0; i < 3; i++) {
+		akm->axis_order[i] = i;
+		akm->axis_sign[i] = 0;
+	}
+}
 static void ak09940_init_axis(struct ak09940_data *akm)
 {
 	struct device	  *dev;
 	struct device_node *np;
 	int				ret;
-	int i;
 
 	dev = &(akm->client->dev);
 	np = dev->of_node;
@@ -1375,6 +1382,8 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 		if (of_property_read_u8(np, "axis_sign_z",
 					&akm->axis_sign[2]) != 0)
 			goto SET_DEFAULT_AXIS;
+	} else {
+		ak09940_set_default_axis(akm);
 	}
 	dev_dbg(dev, "%s : axis=[%d,%d,%d] sign=[%d,%d,%d]", __func__,
 		akm->axis_order[0], akm->axis_order[1], akm->axis_order[2],
@@ -1383,10 +1392,7 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 SET_DEFAULT_AXIS:
 	dev_dbg(dev, "%s : set default axis", __func__);
 	/* set default axis value */
-	for (i = 0; i < 3; i++) {
-		akm->axis_order[i] = i;
-		akm->axis_sign[i] = 0;
-	}
+	ak09940_set_default_axis(akm);
 }
 
 static int ak09940_parse_dt(struct ak09940_data *ak09940)
@@ -1398,8 +1404,12 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	dev = &(ak09940->client->dev);
 	np = dev->of_node;
 
-	if (!np)
+	if (!np) {
+		/* device tree is null */
+		/* set default axis value */
+		ak09940_set_default_axis(ak09940);
 		return -EINVAL;
+	}
 
 	/* init RST pin */
 	ak09940->rstn_gpio = of_get_named_gpio(np, "ak09940,rst_gpio", 0);
