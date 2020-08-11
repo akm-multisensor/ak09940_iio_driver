@@ -1348,7 +1348,8 @@ static int ak09940_setup(struct i2c_client *client)
 	return 0;
 }
 
-static void ak09940_set_default_axis(struct ak09940_data *akm)
+static void ak09940_set_default_axis(
+	struct ak09940_data *akm)
 {
 	int i;
 
@@ -1390,7 +1391,7 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 	} else {
 		ak09940_set_default_axis(akm);
 	}
-	dev_dbg(dev, "%s : axis=[%d,%d,%d] sign=[%d,%d,%d]", __func__,
+	akdbgprt(dev, "%s : axis=[%d,%d,%d] sign=[%d,%d,%d]", __func__,
 		akm->axis_order[0], akm->axis_order[1], akm->axis_order[2],
 		akm->axis_sign[0], akm->axis_sign[1], akm->axis_sign[2]);
 	return;
@@ -1497,13 +1498,14 @@ static int ak09940_probe(
 	akm->client = client;
 
 	err = ak09940_parse_dt(akm);
-	if (err == -EINVAL) {
-		dev_err(&client->dev,
+	if (err < 0) {
+		if ((akm->rstn_gpio == -1) ||
+			(akm->int_gpio == -1))
+			goto err_gpio_request;
+		else
+			dev_err(&client->dev,
 			"[AK09940] Device Tree Setting was not found!\n");
 	}
-	if ((akm->int_gpio == -1) || (akm->rstn_gpio == -1))
-		goto err_gpio_request_one;
-
 
 	if (id)
 		name = id->name;
@@ -1612,7 +1614,7 @@ err_request_irq:
 
 err_trigger_alloc:
 err_setup:
-err_gpio_request_one:
+err_gpio_request:
 	iio_device_free(indio_dev);
 
 	return err;
