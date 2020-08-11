@@ -150,18 +150,18 @@ enum {
  *6 : Measurement Mode 6
  */
 
-typedef struct FreqModeTable {
+struct FreqModeTable {
 	int freq;
 	int reg;
-}FreqModeTableStruct;
+} FreqModeTableStruct;
 static struct FreqModeTable measurementFreqModeTable[] = {
-	{0, 	AK09940_MODE_PDN},
-	{10, 	AK09940_MODE_CONT_10HZ},
-	{20, 	AK09940_MODE_CONT_20HZ},
-	{50, 	AK09940_MODE_CONT_50HZ},
-	{100, 	AK09940_MODE_CONT_100HZ},
-	{200, 	AK09940_MODE_CONT_200HZ},
-	{400, 	AK09940_MODE_CONT_400HZ}
+	{0,	AK09940_MODE_PDN},
+	{10,	AK09940_MODE_CONT_10HZ},
+	{20,	AK09940_MODE_CONT_20HZ},
+	{50,	AK09940_MODE_CONT_50HZ},
+	{100,	AK09940_MODE_CONT_100HZ},
+	{200,	AK09940_MODE_CONT_200HZ},
+	{400,	AK09940_MODE_CONT_400HZ}
 };
 
 
@@ -456,16 +456,15 @@ static int ak09940_get_continue_mode_by_interval(
 	return mode;
 }
 static int ak09940_get_samp_freq(
-	struct ak09940_data *akm, 
+	struct ak09940_data *akm,
 	int mode)
 {
-
 	u8 i;
 	/* -1 means unknown. e.g. selftest mode etc. */
 	int freq = -1;
 
-	for(i=0; i<akm->freq_num; i++) {
-		if (mode == akm->freqmodeTable[i].reg) 
+	for (i = 0; i < akm->freq_num; i++) {
+		if (mode == akm->freqmodeTable[i].reg)
 			freq = akm->freqmodeTable[i].freq;
 	}
 	return freq;
@@ -672,8 +671,10 @@ static ssize_t attr_data_reg_show(
 			"[AK09940] %s read mag data overflow!!!!!!!!!",
 			__func__);
 	}
-	return snprintf(buf, 34, "%02x,%08X,%08x,%08x,%02x\n", 
-		result[AK09940_ST1_POS], mag[0], mag[1], mag[2], result[AK09940_ST2_POS]);
+		return snprintf(buf, 34, "%02x,%08X,%08x,%08x,%02x\n",
+			result[AK09940_ST1_POS],
+			mag[0], mag[1], mag[2],
+			result[AK09940_ST2_POS]);
 }
 
 static IIO_DEVICE_ATTR(data_reg,
@@ -778,7 +779,7 @@ static ssize_t attr_continuous_store(
 	size_t				  count)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	int interval = 0;
+	long interval = 0;
 	int mode = 0;
 	int ret = 0;
 
@@ -787,9 +788,9 @@ static ssize_t attr_continuous_store(
 	if (ret)
 		return ret;
 
-	mode = ak09940_get_continue_mode_by_interval(akm, interval);
+	mode = ak09940_get_continue_mode_by_interval(akm, (int)interval);
 
-	ak09940_set_mode_measure(akm, mode);
+	ak09940_set_mode_measure(akm, (u8)mode);
 
 	return count;
 }
@@ -807,7 +808,7 @@ static ssize_t attr_watermark_store(
 	size_t				  count)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	int watermark = 0;
+	long watermark = 0;
 	int cntl3_value = 0;
 	int error = 0;
 
@@ -821,7 +822,7 @@ static ssize_t attr_watermark_store(
 
 	error =
 		ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
-						  watermark);
+						  (u8)watermark);
 
 	if (error) {
 		dev_err(&akm->client->dev,
@@ -994,8 +995,7 @@ static int ak09940_read_raw(
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	int				 readValue;
 	int				 ret;
-	u8				  cntlValue;
-	int 				mode = 0;
+	int				 mode = 0;
 
 	akdbgprt(&akm->client->dev,
 		"%s called (index=%d)", __func__, chan->scan_index);
@@ -1019,7 +1019,7 @@ static int ak09940_read_raw(
 		mode = atomic_read(&akm->mode);
 		*val = ak09940_get_samp_freq(akm, mode);
 		pr_info("[AK09940] %s : mode=%x, freq=%d\n", __func__,
-				mode, *val );
+				mode, *val);
 		return IIO_VAL_INT;
 	}
 
@@ -1094,11 +1094,9 @@ static int ak09940_convert_axis(
 		return -1;
 	}
 	for (i = 0; i < 3; i++) {
-		for (i = 0; i < 3; i++) {
-			new_data = pre_data[axis_order[i]];
-			if (axis_sign[i])
-				new_data[i] *= -1;
-		}
+		new_data[i] = pre_data[axis_order[i]];
+		if (axis_sign[i])
+			new_data[i] *= -1;
 	}
 	return 0;
 }
@@ -1114,7 +1112,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 	s32 temp_event[3];
-	int j=0;
+	int j = 0;
 
 	mutex_lock(&akm->buffer_mutex);
 	ak09940_i2c_read(client, AK09940_REG_ST1,
@@ -1126,7 +1124,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	event[0] = rdata[AK09940_ST1_POS];
 	event[1] = rdata[AK09940_ST2_POS];
 
-	pevent = &event[2];
+	pevent = (s32 *)&event[2];
 	/*  convert register data to magdata
 	 *  register data: 3 * 8bit
 	 *  magdata: 3 * 18bit
@@ -1142,9 +1140,9 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 *  register data is 18bit
 	 *  so we use Q10 format here
 	 */
-	for (j=0; j<3; j++) {
+	for (j = 0; j < 3; j++)
 		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
-	}
+
 	ak09940_convert_axis(temp_event, pevent,
 			akm->axis_order, akm->axis_sign);
 #ifdef AK09940_DEBUG
@@ -1176,7 +1174,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 	s32 temp_event[3];
-	s64 time_internal = 0;
+	u64 time_interval = 0;
 	s64 cur_time = 0;
 	int cur_mode = atomic_read(&akm->mode);
 
@@ -1185,8 +1183,8 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 #else
 	now = iio_get_time_ns(indio_dev);
 #endif
-	time_internal = (now - akm->prev_time_ns);
-	do_div(time_internal, akm->watermark);
+	time_interval = now - akm->prev_time_ns;
+	do_div(time_interval, akm->watermark);
 	mutex_lock(&akm->buffer_mutex);
 	for (i = 0; i < akm->watermark; i++) {
 		ak09940_i2c_read(client, AK09940_REG_ST1,
@@ -1202,7 +1200,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 			ak09940_i2c_read(client, AK09940_REG_ST1,
 				AK09940_READ_DATA_LENGTH,
 				rdata);
-			selftest_judgement(akm, rdata+1);
+			selftest_judgement(akm, (s32 *)(rdata+1));
 			break;
 		}
 		memset(event, 0, sizeof(event));
@@ -1210,7 +1208,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		event[0] = rdata[AK09940_ST1_POS];
 		event[1] = rdata[AK09940_ST2_POS];
 
-		pevent = &event[2];
+		pevent = (s32 *)&event[2];
 		/*  convert register data to magdata
 		 *  register data: 3 * 8bit
 		 *  magdata: 3 * 18bit
@@ -1221,9 +1219,9 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		 *  register data is 18bit
 		 *  so we use Q10 format here
 		 */
-		for (j=0; j<3; j++) {
+		for (j = 0; j < 3; j++)
 			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
-		}
+
 		if (ak09940_data_check_overflow(temp_event)) {
 			dev_err(&client->dev,
 			"[AK09940] %s(%d)  read mag data overflow!!!!!!!!!\n",
@@ -1231,7 +1229,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		}
 		ak09940_convert_axis(temp_event, pevent,
 			akm->axis_order, akm->axis_sign);
-		cur_time = akm->prev_time_ns + time_internal * (i + 1);
+		cur_time = akm->prev_time_ns + time_interval * (i + 1);
 #ifdef AK09940_DEBUG
 	akdbgprt(&client->dev,
 		"[AK09940] %s mag, %04XH,%04XH,%04XH,time,%lld\n",
@@ -1246,14 +1244,9 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 static void ak09940_send_event(struct iio_dev *indio_dev)
 {
 	struct ak09940_data *akm = iio_priv(indio_dev);
-	struct i2c_client   *client = akm->client;
 #ifdef AK09940_DEBUG
 	int i;
 #endif
-	u8 rdata[AK09940_READ_DATA_LENGTH];
-	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
-	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
-	s32 *pevent;
 
 	akdbgprt(&client->dev,
 		"[AK09940] %s(%d), watermark=%d\n",
@@ -1358,6 +1351,7 @@ static int ak09940_setup(struct i2c_client *client)
 static void ak09940_set_default_axis(struct ak09940_data *akm)
 {
 	int i;
+
 	for (i = 0; i < 3; i++) {
 		akm->axis_order[i] = i;
 		akm->axis_sign[i] = 0;
@@ -1367,7 +1361,6 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 {
 	struct device	  *dev;
 	struct device_node *np;
-	int				ret;
 
 	dev = &(akm->client->dev);
 	np = dev->of_node;
@@ -1502,15 +1495,15 @@ static int ak09940_probe(
 	i2c_set_clientdata(client, indio_dev);
 
 	akm->client = client;
-	
+
 	err = ak09940_parse_dt(akm);
 	if (err == -EINVAL) {
 		dev_err(&client->dev,
 			"[AK09940] Device Tree Setting was not found!\n");
 	}
-	if ((akm->int_gpio == -1) || (akm->rstn_gpio == -1)) {
+	if ((akm->int_gpio == -1) || (akm->rstn_gpio == -1))
 		goto err_gpio_request_one;
-	}
+
 
 	if (id)
 		name = id->name;
@@ -1622,7 +1615,7 @@ err_setup:
 err_gpio_request_one:
 	iio_device_free(indio_dev);
 
-	return ERR_PTR(err);
+	return err;
 }
 
 static int ak09940_remove(struct i2c_client *client)
