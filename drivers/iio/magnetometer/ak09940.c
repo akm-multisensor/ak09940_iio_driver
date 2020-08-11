@@ -164,7 +164,6 @@ static struct FreqModeTable measurementFreqModeTable[] = {
 	{400,	AK09940_MODE_CONT_400HZ}
 };
 
-
 /*
  * Per-instance context data for the device.
  */
@@ -517,6 +516,32 @@ static int ak09940_data_check_overflow(s32 *mag)
 	}
 
 	return 0;
+}
+static int ak09940_read_device_and_check(
+	struct ak09940_data *akm)
+{
+	int ret = 0;
+	u8 deviceID[2] = {0};
+
+	ret = ak09940_i2c_read(akm->client, AK09940_REG_WIA, 2, deviceID);
+
+	if (ret < 0) {
+		dev_err(&akm->client->dev,
+			"[AK09940]i2c read failure, AK09940_REG_WIA err=%d\n",
+			ret);
+		return -EIO;
+	}
+
+	akdbgprt(&akm->client->dev,
+		"[AK09940] Device ID = %x,%x\n", deviceID[0], deviceID[1]);
+
+	if ((deviceID[0] << 8 | deviceID[1]) != AK09940_DEVICE_ID) {
+		dev_err(&akm->client->dev,
+			"[AK09940] Device ID = %x,%x\n",
+			deviceID[0], deviceID[1]);
+		return -ENODEV;
+	}
+	return ret;
 }
 
 static ssize_t attr_setting_reg_show(
@@ -1308,32 +1333,9 @@ static int ak09940_setup(struct i2c_client *client)
 		mdelay(1);
 	}
 
-	err = ak09940_i2c_read(client, AK09940_REG_WIA, 2, deviceID);
-
-	if (err < 0) {
-		pr_err("[AK09940]i2c read failure, AK09940_REG_WIA err=%d\n",
-			   err);
-		return -EIO;
-	}
-
-	akdbgprt(&akm->client->dev,
-		"[AK09940] Device ID = %x,%x\n", deviceID[0], deviceID[1]);
-
-	if ((deviceID[0] << 8 | deviceID[1]) != AK09940_DEVICE_ID) {
-		pr_err("[AK09940] Device ID = %x,%x\n", deviceID[0],
-			   deviceID[1]);
-		return -EIO;
-	}
-
-	if (atomic_read(&akm->mode) < ARRAY_SIZE(measurementFreqModeTable)) {
-		ctnl3 = AK09940_WM_EN(akm->watermark_en) + AK09940_SDR(
-				akm->SDRbit) +
-			measurementFreqModeTable[atomic_read(&akm->mode)].reg;
-	} else {
-		ctnl3 = 0;
-	}
-
-	err = ak09940_i2c_write(client, AK09940_REG_CNTL3, ctnl3);
+	err = ak09940_read_device_and_check(akm);
+	if (err < 0)
+		return err;
 
 	akm->test_lolim[0] = AK09940_TEST_LOLIM_X;
 	akm->test_lolim[1] = AK09940_TEST_LOLIM_Y;
@@ -1345,6 +1347,15 @@ static int ak09940_setup(struct i2c_client *client)
 
 	akm->freqmodeTable = measurementFreqModeTable;
 	akm->freq_num = ARRAY_SIZE(measurementFreqModeTable);
+
+	atomic_set(&akm->mode, AK09940_MODE_PDN);
+	akm->watermark = 0;
+	akm->watermark_en = 0;
+	akm->TEMPbit = 1;
+	akm->SDRbit = 0;
+	/* reset timestamp */
+	akm->prev_time_ns = 0;
+
 	return 0;
 }
 
