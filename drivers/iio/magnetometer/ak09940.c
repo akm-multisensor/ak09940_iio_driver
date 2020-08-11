@@ -1417,11 +1417,13 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	np = dev->of_node;
 
 	if (!np) {
+		dev_err(dev, "[AK09940] %s : device tree is null\n", __func__);
 		/* device tree is null */
 		/* set default axis value */
 		ak09940_set_default_axis(ak09940);
 		return -EINVAL;
 	}
+	ak09940_init_axis(ak09940);
 
 	/* init RST pin */
 	ak09940->rstn_gpio = of_get_named_gpio(np, "ak09940,rst_gpio", 0);
@@ -1431,7 +1433,7 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 	} else {
 		ret = gpio_request(ak09940->rstn_gpio, "ak09940 rstn");
 		if (ret < 0) {
-			akdbgprt(dev, 
+			akdbgprt(dev,
 				"[AK09940] %s : gpio_request ret = %d\n",
 				__func__, ret);
 			ak09940->rstn_gpio = -1;
@@ -1439,7 +1441,7 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 		}
 		gpio_direction_output(ak09940->rstn_gpio, 0);
 	}
-	
+
 	/* init INT pin */
 	ak09940->int_gpio = of_get_named_gpio(np, "ak09940,int_gpio", 0);
 	if (ak09940->int_gpio < 0) {
@@ -1451,7 +1453,7 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 			GPIOF_IN,
 			"ak09940_int");
 		if (ret < 0) {
-			akdbgprt(dev, 
+			akdbgprt(dev,
 				"[AK09940] %s : gpio_request ret = %d\n",
 				__func__, ret);
 			ak09940->int_gpio = -1;
@@ -1459,40 +1461,6 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 		}
 		ak09940->irq = gpio_to_irq(ak09940->int_gpio);
 	}
-
-	ret = of_property_read_u8(np, "ak09940,opetation_mode", &ak09940->mode);
-
-	if (ret && (ret != -EINVAL)) {
-		atomic_set(&ak09940->mode, AK09940_MODE_PDN);
-		akdbgprt(dev, "[AK09940] %s mode(error) = %d\n",
-			__func__, ak09940->mode);
-	} else {
-		if (atomic_read(&ak09940->mode) > AK09940_MODE_NUM - 1)
-			atomic_set(&ak09940->mode, AK09940_MODE_CONT_400HZ);
-	}
-
-	ret = of_property_read_u8(np,
-		"ak09940,drive_setting", &ak09940->SDRbit);
-
-	if (ret && (ret != -EINVAL))
-		ak09940->SDRbit = 0;
-
-	ret = of_property_read_u8(np,
-		"ak09940,watermark", &ak09940->watermark);
-
-	if (ret && (ret != -EINVAL))
-		ak09940->watermark = 0;
-
-	if (ak09940->watermark != 0)
-		ak09940->watermark_en = 1;
-
-	ret = of_property_read_u8(np,
-		"ak09940,temperature", &ak09940->TEMPbit);
-
-	if (ret && (ret != -EINVAL))
-		ak09940->TEMPbit = 0;
-
-	ak09940_init_axis(ak09940);
 
 	return 0;
 }

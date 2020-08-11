@@ -1,6 +1,8 @@
 // Definitions for AK5704 ADC
 /dts-v1/;
 /plugin/;
+#include <dt-bindings/interrupt-controller/irq.h>
+
 
 / {
 	compatible = "brcm,bcm2708";
@@ -13,10 +15,17 @@
 			status = "okay";
 
 			ak09940@10 {
-				#sound-dai-cells = <0>;
-				compatible = "asahi-kasei,ak09940";
-				reg = <0x10>;
-				ak09940,pdn-gpio = <&gpio 4 0>;
+				compatible = "akm,ak09940";
+				ak09940,int_gpio = <&gpio 17  0>;
+				reg = <0x0c>;
+				ak09940,rst_gpio = <&gpio 4 0>;
+				axis_order_x=/bits/ 8 <0>;
+				axis_order_y=/bits/ 8 <1>;
+				axis_order_z=/bits/ 8 <2>;
+				axis_sign_x=/bits/ 8 <0>;
+				axis_sign_y=/bits/ 8 <0>;
+				axis_sign_z=/bits/ 8 <0>;
+
 				status = "okay";
 			};
 		};
