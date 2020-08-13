@@ -670,14 +670,11 @@ static int ak09940_set_continue_measure(
 	set_start_measure_time(akm);
 	return error;
 }
-static int ak09940_set_mode_measure(
+static int ak09940_set_mode(
 	struct ak09940_data *akm,
 	u8				  mode)
 {
 	int error = 0;
-	u8  cntl1_value = 0;
-	u8  cntl2_value = 0;
-	u8  cntl3_value = 0;
 
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s called", __func__);
@@ -685,58 +682,54 @@ static int ak09940_set_mode_measure(
 	error = ak09940_check_mode_available(akm, mode);
 	if (error)
 		return error;
-
-	/*set watermark*/
-	if (akm->watermark > 0) {
-		cntl1_value = AK09940_WM(akm->watermark);
-		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
-								  cntl1_value);
-		if (error)
-			return error;
-	}
-
-	/*set TEMP enable*/
-	if (akm->TEMPbit) {
-		cntl2_value = 0x40;
-		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL2,
-								  cntl2_value);
-		if (error)
-			return error;
-	}
-
-	if (akm->mode != AK09940_MODE_PDN) {
-		/* now mode is not PDN mode, set PDN mode first */
-		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-			AK09940_MT(akm->MTbit) + AK09940_MODE_PDN;
-		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3,
-								  cntl3_value);
-
+	switch (mode) {
+	case AK09940_MODE_PDN:
+		error = ak09940_set_PDN_mode(akm);
 		if (error) {
-			akm->mode = AK09940_MODE_PDN;
+			/* set PDN mode failed */
+			dev_err(&akm->client->dev,
+				"[AK09940] %s,%d failed\n",
+				__func__, __LINE__);
 			return error;
 		}
-		akm->mode = mode;
-		msleep(20);
+		break;
+	case AK09940_MODE_SNG:
+		error = ak09940_set_single_measure(akm);
+		if (error) {
+			/* set SNG mode failed */
+			dev_err(&akm->client->dev,
+				"[AK09940] %s,%d failed\n",
+				__func__, __LINE__);
+			return error;
+		}
+		break;
+	case AK09940_MODE_SELFTEST:
+		error = ak09940_set_selftest_measure(akm);
+		if (error) {
+			/* set SNG mode failed */
+			dev_err(&akm->client->dev,
+				"[AK09940] %s,%d failed\n",
+				__func__, __LINE__);
+			return error;
+		}
+		break;
+	case AK09940_MODE_CONT_10HZ:
+	case AK09940_MODE_CONT_20HZ:
+	case AK09940_MODE_CONT_50HZ:
+	case AK09940_MODE_CONT_100HZ:
+	case AK09940_MODE_CONT_200HZ:
+	case AK09940_MODE_CONT_400HZ:
+		error = ak09940_set_continue_measure(akm, mode);
+		if (error) {
+			/* set SNG mode failed */
+			dev_err(&akm->client->dev,
+				"[AK09940] %s,%d failed\n",
+				__func__, __LINE__);
+			return error;
+		}
+		break;
 	}
-
-	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-		AK09940_MT(akm->MTbit) +
-		mode;
-	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
-
-	if (error) {
-		akm->mode = AK09940_MODE_PDN;
-		return error;
-	}
-	if ((mode == AK09940_MODE_SNG) ||
-		(mode == AK09940_MODE_SELFTEST)) {
-		/* if mode is single measurement or selftest
-		 * chip will switch to PDN mode automatically
-		 */
-		akm->mode = AK09940_MODE_PDN;
-	} else {
-		akm->mode = mode;
-	}
+	akm->mode = mode;
 	return error;
 }
 
@@ -1082,7 +1075,7 @@ static ssize_t attr_selftest_show(
 
 	akdbgprt(dev, "[AK09940] %s called", __func__);
 
-	ret = ak09940_set_mode_measure(akm, AK09940_MODE_SELFTEST);
+	ret = ak09940_set_mode(akm, AK09940_MODE_SELFTEST);
 
 	if (ret) {
 		dev_dbg(dev,
@@ -1122,7 +1115,7 @@ static ssize_t attr_single_store(
 
 	akdbgprt(dev, "[AK09940] %s called", __func__);
 
-	ak09940_set_mode_measure(akm, AK09940_MODE_SNG);
+	ak09940_set_mode(akm, AK09940_MODE_SNG);
 
 	return count;
 }
@@ -1151,7 +1144,7 @@ static ssize_t attr_continuous_store(
 
 	mode = ak09940_get_continue_mode_by_interval(akm, (int)interval);
 
-	ak09940_set_mode_measure(akm, (u8)mode);
+	ak09940_set_mode(akm, (u8)mode);
 
 	return count;
 }
@@ -1399,7 +1392,7 @@ static int ak09940_set_measurement_freq(
 
 	mode = ak09940_get_continue_mode_by_interval(akm, val);
 
-	ak09940_set_mode_measure(akm, mode);
+	ak09940_set_mode(akm, mode);
 
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s mode = %d\n",
