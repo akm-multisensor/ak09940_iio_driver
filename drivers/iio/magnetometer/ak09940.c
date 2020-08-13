@@ -121,6 +121,7 @@
 #define AK09940_MODE_SHIFT			0
 
 #define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
+#define AK09940_OVERFLOW			1
 
 #define AK09940_PDN_TO_OTHER_MODE_DELAY	1
 
@@ -491,27 +492,15 @@ static int ak09940_parse_raw_data(
 	return 0;
 }
 
-static int ak09940_one_axis_data_check_overflow(s32 data)
-{
-	if (data == AK09940_DATA_OVERFLOW_VALUE)
-		return 1;
-	else
-		return 0;
-}
-
 static int ak09940_data_check_overflow(s32 *mag)
 {
 	int i = 0;
-	int ret = 0;
 
+	if (mag == NULL)
+		return -EINVAL;
 	for (i = 0; i < 3; i++) {
-		if (mag == NULL)
-			return -EINVAL;
-
-		ret = ak09940_one_axis_data_check_overflow(*(mag + i));
-
-		if (ret)
-			return 1;
+		if (mag[i] == AK09940_DATA_OVERFLOW_VALUE)
+			return AK09940_OVERFLOW;
 	}
 
 	return 0;
@@ -992,10 +981,10 @@ static int ak09940_read_axis(
 			 ((uint32_t)rdata[1] << 16) |
 			 ((uint32_t)rdata[0] << 8)) >> 8;
 
-		if (ak09940_one_axis_data_check_overflow(mag)) {
+		if (mag == AK09940_DATA_OVERFLOW_VALUE) {
 			dev_err(&akm->client->dev,
-				"[AK09940] %s mag data overflow!!!!!!!, mag = %x,%x,%x\n",
-				__func__, rdata[2], rdata[1], rdata[0]);
+				"[AK09940] %s mag data overflow!!!!!!!\n",
+				__func__);
 		}
 
 		*val = mag;
