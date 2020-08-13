@@ -125,7 +125,7 @@
 #define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
 #define AK09940_OVERFLOW			1
 
-#define AK09940_PDN_TO_OTHER_MODE_DELAY	1
+#define AK09940_PDN_MODE_DELAY	20
 
 /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
 #define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
@@ -207,6 +207,8 @@ struct ak09940_data {
 	s64				prev_time_ns;
 
 };
+
+static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev);
 
 /********************  Register R/W  *********************/
 static int ak09940_i2c_reads(
@@ -515,6 +517,157 @@ static int ak09940_set_sensor_drive(
 			__func__);
 		return -EBUSY;
 	}
+	return error;
+}
+/*
+ * set chip to PDN mode
+ * clear all other bits(WM[2:0]/TEM/FIFO/MT[1:0])
+ */
+static int ak09940_set_PDN_mode(
+	struct ak09940_data *akm)
+{
+	u8  cntl3_value = 0;
+	int error = 0;
+	struct iio_dev *indio_dev = iio_priv_to_dev(akm);
+
+	if (akm->mode == AK09940_MODE_PDN)
+		return error;
+	/* if use FIFO mode, read out all FIFO data first*/
+	if (akm->watermark_en == 1) {
+		mutex_lock(&akm->fifo_mutex);
+		ak09940_fifo_read_and_event(indio_dev);
+		mutex_unlock(&akm->fifo_mutex);
+	}
+	cntl3_value =
+		AK09940_WM_EN(akm->watermark_en) +
+		AK09940_MT(akm->MTbit) +
+		AK09940_MODE_PDN;
+	error = ak09940_i2c_write(
+		akm->client,
+		AK09940_REG_CNTL3,
+		cntl3_value);
+	if (error) {
+		/* I2C write failed*/
+		return error;
+	}
+	akm->mode = AK09940_MODE_PDN;
+	udelay(AK09940_PDN_MODE_DELAY);
+	return error;
+}
+/*
+ * set chip to SNG mode, do not set FIFO bit
+ * It is prohibited to enable FIFO other than Continuous measurement mode.
+ */
+static int ak09940_set_single_measure(
+	struct ak09940_data *akm)
+{
+	int error = 0;
+	u8  cntl3_value = 0;
+
+	error = check_mode_change_directly(akm);
+	if (error) {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return error;
+	}
+	cntl3_value =
+		AK09940_MT(akm->MTbit) +
+		AK09940_MODE_SNG;
+	error = ak09940_i2c_write(
+		akm->client,
+		AK09940_REG_CNTL3,
+		cntl3_value);
+	if (error) {
+		/* I2C write failed */
+		dev_err(&akm->client->dev,
+			"[AK09940] %s,%d failed\n",
+			__func__, __LINE__);
+		return error;
+	}
+	return error;
+}
+/*
+ * set chip to self-test mode, do not set FIFO bit, MT[1:0] = "11"
+ * It is prohibited to enable FIFO other than Continuous measurement mode.
+ */
+static int ak09940_set_selftest_measure(
+	struct ak09940_data *akm)
+{
+	int error = 0;
+	u8  cntl3_value = 0;
+	u8 temp_mt = 0x3;
+
+	error = check_mode_change_directly(akm);
+	if (error) {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return error;
+	}
+	cntl3_value =
+		AK09940_MT(temp_mt) +
+		AK09940_MODE_SELFTEST;
+	error = ak09940_i2c_write(
+		akm->client,
+		AK09940_REG_CNTL3,
+		cntl3_value);
+	if (error) {
+		/* I2C write failed */
+		dev_err(&akm->client->dev,
+			"[AK09940] %s,%d failed\n",
+			__func__, __LINE__);
+		return error;
+	}
+	return error;
+}
+/*
+ * set chip to continue measurement mode
+ */
+static int ak09940_set_continue_measure(
+	struct ak09940_data *akm,
+	u8 mode)
+{
+	int error = 0;
+	u8  cntl3_value = 0;
+
+	if (akm->mode == mode) {
+		/* new mode is the same with current mode*/
+		akdbgprt(&akm->client->dev,
+		"[AK09940] %s mode is the same, no need to set", __func__);
+		return error;
+	}
+	error = check_mode_change_directly(akm);
+	if (error) {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return error;
+	}
+	if (mode == AK09940_MODE_CONT_400HZ) {
+		if ((akm->MTbit != 0) &&
+			(akm->MTbit != 1)) {
+			dev_err(&akm->client->dev,
+				"[AK09940] %s MT[1:0] must be 0 or 1 in 400HZ\n",
+				__func__);
+			return -EINVAL;
+		}
+	}
+	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
+		AK09940_MT(akm->MTbit) +
+		mode;
+	error = ak09940_i2c_write(
+		akm->client,
+		AK09940_REG_CNTL3,
+		cntl3_value);
+	if (error) {
+		/* I2C write failed */
+		dev_err(&akm->client->dev,
+			"[AK09940] %s set PDN failed\n",
+			__func__);
+		return error;
+	}
+	set_start_measure_time(akm);
 	return error;
 }
 static int ak09940_set_mode_measure(
