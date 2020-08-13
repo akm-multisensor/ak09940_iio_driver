@@ -914,40 +914,92 @@ static ssize_t attr_data_reg_show(
 	char					*buf)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	u8  result[AK09940_REG_ST1_ST2_LENGTH];
+	/* ST1+FIFO data length*/
+	/* FIFO data length: (HXL_ST2_LENGTH) * FIFO MAX STEP*/
+	u8 result[AK09940_REG_HXL_ST2_LENGTH * AK09940_FIFO_MAX_SIZE + 1] = {0};
 	s32 mag[3];
 	int ret;
-#ifdef AK09940_DEBUG
 	int i = 0;
-#endif
+	u8 st1 = 0;
+	int event_num = 0;
+	int read_bytes = 0;
+	int event_pos = 0;
+	int str_len = 0;
 
 	akdbgprt(dev, "[AK09940] %s called", __func__);
 
-	ret = ak09940_i2c_read(akm->client, AK09940_REG_ST1,
-					   AK09940_REG_ST1_ST2_LENGTH, result);
+	if (akm->watermark_en == 0) {
+		ret = ak09940_i2c_read(akm->client,
+			AK09940_REG_ST1,
+			AK09940_REG_ST1_ST2_LENGTH,
+			result);
 
 #ifdef AK09940_DEBUG
-	for (i = 0; i < AK09940_REG_ST1_ST2_LENGTH; i++) {
-		akdbgprt(dev,
-			"[AK09940] %s %d %02XH\n",
-			__func__, i, result[i]);
-	}
+		for (i = 0; i < AK09940_REG_ST1_ST2_LENGTH; i++) {
+			akdbgprt(dev,
+				"[AK09940] %s %d %02XH\n",
+				__func__, i, result[i]);
+		}
 #endif
 
-	if (ret < 0)
-		return ret;
+		if (ret < 0)
+			return ret;
 
-	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
+		ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
 
-	if (ak09940_data_check_overflow(mag)) {
-		dev_err(dev,
-			"[AK09940] %s read mag data overflow!!!!!!!!!",
-			__func__);
-	}
+		if (ak09940_data_check_overflow(mag)) {
+			dev_err(dev,
+				"[AK09940] %s read mag data overflow!!!!!!!!!",
+				__func__);
+		}
 		return snprintf(buf, 34, "%02x,%08X,%08x,%08x,%02x\n",
 			result[AK09940_ST1_POS],
 			mag[0], mag[1], mag[2],
 			result[AK09940_ST2_POS]);
+	} else {
+		mutex_lock(&akm->fifo_mutex);
+		/* FIFO is enable */
+		/* 1. check how many event in FIFO by FNUM */
+		ret = ak09940_i2c_read(akm->client,
+			AK09940_REG_ST1,
+			1,
+			result);
+		st1 = result[0];
+		event_num = (st1 & AK09940_FNUM_MASK) >>
+			AK09940_FNUN_SHIFT;
+		/* total bytes is ST1 + event_num * AK09940_DATA_FIFO_LENGTH*/
+		read_bytes = event_num * AK09940_REG_HXL_ST2_LENGTH + 1;
+		ret = ak09940_i2c_read(akm->client,
+			AK09940_REG_ST1,
+			read_bytes,
+			result);
+#ifdef AK09940_DEBUG
+		for (i = 0; i < read_bytes; i++) {
+			akdbgprt(dev,
+				"[AK09940] %s %d %02XH\n",
+				__func__, i, result[i]);
+		}
+#endif
+		/* 2. process every events*/
+		for (i = 0; i < event_num; i++) {
+			event_pos = i * AK09940_REG_HXL_ST2_LENGTH + 1;
+			ak09940_parse_raw_data(
+				&result[event_pos + AK09940_DATA_POS],
+				mag);
+			if (ak09940_data_check_overflow(mag)) {
+				dev_err(dev,
+					"[AK09940] %s read mag data overflow!!!!!!!!!",
+					__func__);
+			}
+			str_len += snprintf(buf, 34,
+				"%02x,%08X,%08x,%08x,%02x\n",
+				result[event_pos],
+				mag[0], mag[1], mag[2],
+				result[event_pos + AK09940_ST2_POS]);
+		}
+		mutex_unlock(&akm->fifo_mutex);
+		return str_len;
+	}
 }
 
 static IIO_DEVICE_ATTR(data_reg,
