@@ -171,7 +171,7 @@ static struct FreqModeTable measurementFreqModeTable[] = {
 struct ak09940_data {
 	struct i2c_client  *client;
 	struct iio_trigger *trig;
-	struct mutex buffer_mutex;
+	/* to protect fifo read flow*/
 	struct mutex fifo_mutex;
 	struct work_struct	flush_work;
 	struct workqueue_struct *wq;
@@ -1156,7 +1156,6 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	s32 temp_event[3];
 	int j = 0;
 
-	mutex_lock(&akm->buffer_mutex);
 	ak09940_i2c_read(client, AK09940_REG_ST1,
 		AK09940_READ_DATA_LENGTH,
 		rdata);
@@ -1201,7 +1200,6 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 						iio_get_time_ns(indio_dev));
 #endif
 
-	mutex_unlock(&akm->buffer_mutex);
 
 }
 static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
@@ -1226,7 +1224,6 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 #endif
 	time_interval = now - akm->prev_time_ns;
 	do_div(time_interval, akm->watermark);
-	mutex_lock(&akm->buffer_mutex);
 	for (i = 0; i < akm->watermark; i++) {
 		ak09940_i2c_read(client, AK09940_REG_ST1,
 			AK09940_READ_DATA_LENGTH,
@@ -1278,25 +1275,20 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 #endif
 		iio_push_to_buffers_with_timestamp(indio_dev, event, cur_time);
 	}
-	mutex_unlock(&akm->buffer_mutex);
 	akm->prev_time_ns = now;
 }
 /*******************************************************************/
 static void ak09940_send_event(struct iio_dev *indio_dev)
 {
 	struct ak09940_data *akm = iio_priv(indio_dev);
-#ifdef AK09940_DEBUG
-	int i;
-#endif
 
-	akdbgprt(&client->dev,
-		"[AK09940] %s(%d), watermark=%d\n",
-		__func__, __LINE__, akm->watermark);
-
-	if (akm->watermark == 0)
+	if (akm->watermark_en == 0) {
 		ak09940_read_and_event(indio_dev);
-	else
+	} else {
+		mutex_lock(&akm->fifo_mutex);
 		ak09940_fifo_read_and_event(indio_dev);
+		mutex_unlock(&akm->fifo_mutex);
+	}
 }
 
 /*******************************************************************/
@@ -1581,7 +1573,6 @@ static int ak09940_probe(
 
 
 
-	mutex_init(&akm->buffer_mutex);
 	mutex_init(&akm->fifo_mutex);
 
 	INIT_WORK(&akm->flush_work, ak09940_flush_handler);
