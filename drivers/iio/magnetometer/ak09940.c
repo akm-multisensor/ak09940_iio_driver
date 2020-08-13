@@ -1271,24 +1271,30 @@ static int ak09940_read_raw(
 }
 
 static int ak09940_set_measurement_freq(
-
 	struct ak09940_data *akm,
 	int				 val)
 {
 	u8  mode;
+	int error = 0;
 
 	akdbgprt(&akm->client->dev,
-		"[AK09940] %s freq = %d\n", __func__, (int)val);
+		"[AK09940] %s val = %d\n", __func__, (int)val);
 
 	mode = ak09940_get_continue_mode_by_interval(akm, val);
 
-	ak09940_set_mode(akm, mode);
+	error = ak09940_set_mode(akm, mode);
+	if (error < 0) {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s(%d)  set mode failed\n",
+			 __func__, __LINE__);
+		return error;
+	}
 
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s mode = %d\n",
 		__func__, akm->mode);
 
-	return 0;
+	return error;
 }
 
 static int ak09940_write_raw(
