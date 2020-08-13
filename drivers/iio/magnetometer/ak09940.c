@@ -886,108 +886,16 @@ static ssize_t attr_setting_reg_show(
 
 	ak09940_i2c_read(akm->client, AK09940_REG_CNTL1, 3, cntl);
 	dev_info(dev, "[AK09940] CNTL1(30H)=%XH", (int)cntl[0]);
-	dev_info(dev, "[AK09940] CNTL1(31H)=%XH", (int)cntl[1]);
-	dev_info(dev, "[AK09940] CNTL1(32H)=%XH", (int)cntl[2]);
+	dev_info(dev, "[AK09940] CNTL2(31H)=%XH", (int)cntl[1]);
+	dev_info(dev, "[AK09940] CNTL3(32H)=%XH", (int)cntl[2]);
 
 	return snprintf(buf, 10, "%02X,%02x,%02x\n", cntl[0], cntl[1], cntl[2]);
 }
 
-static ssize_t attr_setting_reg_store(
-	struct device		   *dev,
-	struct device_attribute *attr,
-	const char			  *buf,
-	size_t				  count)
-{
-	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	char				*ptr_data = (char *)buf;
-	char				*p;
-	int				 pt_count = 0;
-	u8				  val[2];
-	int				 ret = 0;
-	u8				  address = 0, value = 0;
-	u8				  i = 0;
-	u8				  new_mode = 0;
-	long				temp = 0;
-
-	akdbgprt(dev, "[AK09940] %s called: '%s'(%zu)",
-		__func__, buf, count);
-
-	if (buf == NULL)
-		return -EINVAL;
-
-	if (count == 0)
-		return 0;
-
-	while ((p = strsep(&ptr_data, ","))) {
-		if (!*p)
-			break;
-
-		if (pt_count >= 3)
-			break;
-
-		if ((pt_count == 0) ||
-			((val[0] >= AK09940_REG_CNTL1) &&
-			 (val[0] <= AK09940_REG_CNTL3))) {
-			ret = kstrtol(p, 10, &temp);
-			if (ret)
-				goto KSTRTOL_ERR;
-		} else {
-			ret = kstrtol(p, 10, &temp);
-			if (ret)
-				goto KSTRTOL_ERR;
-		}
-		val[pt_count] = temp;
-
-		pt_count++;
-	}
-
-	if (pt_count != 2) {
-		dev_err(dev, "[AK09940] %s pt_count = %d, Error", __func__,
-			pt_count);
-		goto PARA_NUMBER_ERR;
-	} else {
-		switch (val[0]) {
-		case 0x30:
-			akm->watermark = val[1];
-			break;
-
-		case 0x31:
-			akm->TEMPbit = val[1];
-			break;
-
-		case 0x32:
-			akm->watermark_en = (val[1] & AK09940_WM_EN_MASK) >>
-				AK09940_WM_EN_SHIFT;
-			akm->MTbit = (val[1] & AK09940_MT_MASK) >>
-				AK09940_MT_SHIFT;
-			new_mode = (val[1] & AK09940_MODE_MASK) >>
-				AK09940_MODE_SHIFT;
-
-			while (new_mode != akm->freqmodeTable[i].reg) {
-				i++;
-				continue;
-			}
-			akm->mode = i;
-			break;
-		}
-	}
-
-	address = val[0];
-	value = val[1];
-	ret = ak09940_i2c_write(akm->client, address, value);
-
-	return count;
-KSTRTOL_ERR:
-	return ret;
-PARA_NUMBER_ERR:
-	return -EINVAL;
-}
-
-
 static IIO_DEVICE_ATTR(setting_reg,
 		AK09940_IIO_DEVICE_ATTR_PERMISSION,
 		attr_setting_reg_show,
-		attr_setting_reg_store,
+		NULL,
 		0);
 
 static ssize_t attr_data_reg_show(
@@ -1106,56 +1014,51 @@ static IIO_DEVICE_ATTR(selftest,
 		NULL,
 		0);
 
-static ssize_t attr_single_store(
+static ssize_t attr_operation_mode_show(
 	struct device		   *dev,
 	struct device_attribute *attr,
-	const char			  *buf,
-	size_t				  count)
+	char					*buf)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
 
 	akdbgprt(dev, "[AK09940] %s called", __func__);
 
-	ak09940_set_mode(akm, AK09940_MODE_SNG);
-
-	return count;
+	return snprintf(buf, 4, "%02X\n", akm->mode);
 }
-
-static IIO_DEVICE_ATTR(single,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
-		NULL,
-		attr_single_store,
-		0);
-
-static ssize_t attr_continuous_store(
+static ssize_t attr_operation_mode_store(
 	struct device		   *dev,
 	struct device_attribute *attr,
 	const char			  *buf,
 	size_t				  count)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	long interval = 0;
-	int mode = 0;
-	int ret = 0;
+	long mode = 0;
+	int error = 0;
 
 	akdbgprt(dev, "[AK09940] %s called, buf=%s", __func__, buf);
-	ret = kstrtol(buf, 10, &interval);
-	if (ret)
-		return ret;
-
-	mode = ak09940_get_continue_mode_by_interval(akm, (int)interval);
-
+	error = kstrtol(buf, 10, &mode);
+	if (error)
+		return error;
 	ak09940_set_mode(akm, (u8)mode);
-
 	return count;
 }
-
-static IIO_DEVICE_ATTR(continuous,
+static IIO_DEVICE_ATTR(operation_mode,
 		AK09940_IIO_DEVICE_ATTR_PERMISSION,
-		NULL,
-		attr_continuous_store,
+		attr_operation_mode_show,
+		attr_operation_mode_store,
 		0);
 
+static ssize_t attr_watermark_show(
+	struct device		   *dev,
+	struct device_attribute *attr,
+	char					*buf)
+{
+	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
+
+	akdbgprt(dev, "[AK09940] %s called", __func__);
+
+	return snprintf(buf, 4, "%02X\n", akm->watermark);
+}
 static ssize_t attr_watermark_store(
 	struct device		   *dev,
 	struct device_attribute *attr,
@@ -1164,69 +1067,55 @@ static ssize_t attr_watermark_store(
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
 	long watermark = 0;
-	int cntl3_value = 0;
 	int error = 0;
 
 	akdbgprt(dev, "[AK09940] %s called, buf=%s", __func__, buf);
 	error = kstrtol(buf, 10, &watermark);
 	if (error)
 		return error;
-
-	if (akm->watermark == watermark)
-		return count;
-
-	error =
-		ak09940_i2c_write(akm->client, AK09940_REG_CNTL1,
-						  (u8)watermark);
-
-	if (error) {
-		dev_err(&akm->client->dev,
-				"[AK09940] %s set cntl1 failed\n",
-				__func__);
-		return error;
-	}
-	akm->watermark = watermark;
-
-	if (akm->watermark == 0) {
-		if (akm->watermark_en != 0) {
-			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-				AK09940_MT(
-					akm->MTbit) + akm->mode;
-			error = ak09940_i2c_write(akm->client,
-					AK09940_REG_CNTL3,
-					cntl3_value);
-
-			if (error) {
-				akm->mode = AK09940_MODE_PDN;
-				return error;
-			}
-			akm->watermark_en = 0;
-		}
-	} else {
-		if (akm->watermark_en == 0) {
-			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-				AK09940_MT(
-					akm->MTbit) + akm->mode;
-			error = ak09940_i2c_write(akm->client,
-						  AK09940_REG_CNTL3,
-						  cntl3_value);
-
-			if (error) {
-				akm->mode = AK09940_MODE_PDN;
-				return error;
-			}
-			akm->watermark_en = 1;
-		}
-	}
-
-
+	ak09940_set_watermark(akm, (u8)watermark);
 	return count;
 }
 
 static IIO_DEVICE_ATTR(watermark,
 		AK09940_IIO_DEVICE_ATTR_PERMISSION,
-		NULL,
+		attr_watermark_show,
 		attr_watermark_store,
+		0);
+
+static ssize_t attr_sensor_drive_show(
+	struct device		   *dev,
+	struct device_attribute *attr,
+	char					*buf)
+{
+	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
+
+	akdbgprt(dev, "[AK09940] %s called", __func__);
+
+	return snprintf(buf, 4, "%02X\n", akm->MTbit);
+}
+static ssize_t attr_sensor_drive_store(
+	struct device		   *dev,
+	struct device_attribute *attr,
+	const char			  *buf,
+	size_t				  count)
+{
+	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
+	long mt = 0;
+	int error = 0;
+
+	akdbgprt(dev, "[AK09940] %s called, buf=%s", __func__, buf);
+	error = kstrtol(buf, 10, &mt);
+	if (error)
+		return error;
+	ak09940_set_sensor_drive(akm, (u8)mt);
+	return count;
+}
+
+static IIO_DEVICE_ATTR(sensor_drive,
+		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		attr_sensor_drive_show,
+		attr_sensor_drive_store,
 		0);
 static ssize_t attr_softreset_store(
 	struct device		   *dev,
@@ -1257,13 +1146,13 @@ static IIO_DEVICE_ATTR(reset,
 		attr_softreset_store,
 		0);
 
-static struct attribute			 *ak09940_attributes[] = {
+static struct attribute *ak09940_attributes[] = {
 	&iio_dev_attr_setting_reg.dev_attr.attr,
 	&iio_dev_attr_data_reg.dev_attr.attr,
 	&iio_dev_attr_selftest.dev_attr.attr,
-	&iio_dev_attr_single.dev_attr.attr,
-	&iio_dev_attr_continuous.dev_attr.attr,
+	&iio_dev_attr_operation_mode.dev_attr.attr,
 	&iio_dev_attr_watermark.dev_attr.attr,
+	&iio_dev_attr_sensor_drive.dev_attr.attr,
 	&iio_dev_attr_reset.dev_attr.attr,
 	NULL
 };
