@@ -119,6 +119,8 @@
 #define AK09940_MT_SHIFT			5
 #define AK09940_MODE_MASK			0x1F
 #define AK09940_MODE_SHIFT			0
+#define AK09940_TEMP_BIT_MASK		0x40
+#define AK09940_TEMP_BIT_SHIFT		6
 
 #define AK09940_DATA_OVERFLOW_VALUE		0x1FFFF
 #define AK09940_OVERFLOW			1
@@ -329,9 +331,10 @@ static const struct iio_chan_spec ak09940_channels[] = {
 	AK099XX_MAG_CHANNEL(MOD_Z, 3),
 	IIO_CHAN_SOFT_TIMESTAMP(4),
 };
-
-/*******************************************************************/
-static int ak09940_check_measurement_mode(
+/*
+ * check operation mode
+ */
+static int ak09940_check_mode_available(
 	struct ak09940_data *akm,
 	u8				  mode)
 {
@@ -346,10 +349,174 @@ static int ak09940_check_measurement_mode(
 		if (akm->freqmodeTable[i].reg == mode)
 			return 0;
 	}
-
 	return -EINVAL;
 }
+/*
+ * check watermark value, range is 1-8
+ */
+static int check_watermark_available(u8 watermark)
+{
+	if ((watermark < 1) || (watermark > 8))
+		return -EINVAL;
+	return 0;
+}
+/*
+ * update watermark_en flag by watermark value
+ */
+static void update_watermark_flag(
+	struct ak09940_data *akm,
+	u8 value)
+{
+	akm->watermark = value;
+	/* according watermark reset watermark_en*/
+	if (akm->watermark == 1)
+		akm->watermark_en = 0;
+	else if ((akm->watermark > 1) &&
+		(akm->watermark <= 8)) {
+		akm->watermark_en = 1;
+	}
+}
+/*
+ * if change operation mode, transit to PDN mode first
+ * the SNG mode and self-test mode will transit to PDN mode automatically
+ * return 0 means chip could change mode directly
+ */
+static int check_mode_change_directly(
+	struct ak09940_data *akm)
+{
+	if ((akm->mode == AK09940_MODE_PDN) ||
+		(akm->mode == AK09940_MODE_SNG) ||
+		(akm->mode == AK09940_MODE_SELFTEST))
+		return 0;
+	else
+		return -EBUSY;
+}
+/*
+ * if change operation mode, transit to PDN mode first
+ * the SNG mode and self-test mode will transit to PDN mode automatically
+ */
+static void set_start_measure_time(
+	struct ak09940_data *akm)
+{
+	struct iio_dev *indio_dev = iio_priv_to_dev(akm);
+#ifdef KERNEL_3_18_XX
+	akm->prev_time_ns = iio_get_time_ns();
+#else
+	akm->prev_time_ns = iio_get_time_ns(indio_dev);
+#endif
+}
+/*
+ * set watermar bits(CNTL1)
+ * It is prohibited to change WM[2:0] bits
+ * in any other modes than Power-down mode.
+ */
+static int ak09940_set_watermark(
+	struct ak09940_data *akm,
+	u8 value)
+{
+	int error = 0;
 
+	if (value == akm->watermark)
+		return error;
+
+	/*change CTNL1, must in PDN mode*/
+	if (akm->mode == AK09940_MODE_PDN) {
+		/* 1. check watermark value */
+		error = check_watermark_available(value);
+		if (value < 0) {
+			dev_err(&akm->client->dev,
+				"[AK09940] %s watermark value error\n",
+				__func__);
+			return error;
+		}
+		/* 2. set CTNL1 register */
+		/*register value range 0-7*/
+		/*watermark size value range 1-8*/
+		error = ak09940_i2c_write(
+			akm->client,
+			AK09940_REG_CNTL1,
+			value - 1);
+		if (error) {
+		/* I2C write failed*/
+			return error;
+		}
+		/* 5. set watermark and watermark_en */
+		update_watermark_flag(akm, value);
+	} else {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return -EBUSY;
+	}
+	return error;
+}
+/*
+ * set temperature bits(CNTL2)
+ */
+static int ak09940_set_temperature_en(
+	struct ak09940_data *akm,
+	u8 value)
+{
+	u8  cntl2_value = 0;
+	int error = 0;
+
+	if (value == akm->TEMPbit)
+		return error;
+
+	cntl2_value = (value << AK09940_TEMP_BIT_SHIFT) &&
+		AK09940_TEMP_BIT_MASK;
+	/*change CTNL2, must in PDN mode*/
+	if (akm->mode == AK09940_MODE_PDN) {
+		error = ak09940_i2c_write(
+			akm->client,
+			AK09940_REG_CNTL2,
+			cntl2_value);
+		if (error) {
+			/* I2C write failed*/
+			return error;
+		}
+	} else {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return -EBUSY;
+	}
+	return error;
+}
+/*
+ * set sensor drive bits(CNTL3 MT[1:0])
+ */
+static int ak09940_set_sensor_drive(
+	struct ak09940_data *akm,
+	u8 value)
+{
+	u8  cntl3_value = 0;
+	int error = 0;
+
+	if (value == akm->MTbit)
+		return error;
+
+	/*change MT[1:0], must in PDN mode*/
+	if (akm->mode == AK09940_MODE_PDN) {
+		cntl3_value =
+			AK09940_WM_EN(akm->watermark_en) +
+			AK09940_MT(value);
+		error = ak09940_i2c_write(
+			akm->client,
+			AK09940_REG_CNTL3,
+			cntl3_value);
+		if (error) {
+			/* I2C write failed*/
+			return error;
+		}
+	} else {
+		dev_err(&akm->client->dev,
+			"[AK09940] %s chip is busy now, set PDN mode first\n",
+			__func__);
+		return -EBUSY;
+	}
+	return error;
+}
 static int ak09940_set_mode_measure(
 	struct ak09940_data *akm,
 	u8				  mode)
@@ -362,8 +529,7 @@ static int ak09940_set_mode_measure(
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s called", __func__);
 
-	error = ak09940_check_measurement_mode(akm, mode);
-
+	error = ak09940_check_mode_available(akm, mode);
 	if (error)
 		return error;
 
