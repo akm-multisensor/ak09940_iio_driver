@@ -1332,7 +1332,6 @@ static int ak09940_read_axis(
 	}
 
 	len = 3;
-
 	switch (index) {
 	case 1:
 		address = AK09940_REG_HXL;
@@ -1839,7 +1838,7 @@ static int ak09940_set_trigger_state(
 	struct iio_trigger *trig,
 	bool			   state)
 {
-	const struct iio_dev         *indio_dev = dev_get_drvdata(
+	const struct iio_dev *indio_dev = dev_get_drvdata(
 							trig->dev.parent);
 	const struct ak09940_data *akm = iio_priv(indio_dev);
 
@@ -2010,15 +2009,13 @@ static int ak09940_remove(struct i2c_client *client)
 	iio_device_unregister(indio_dev);
 	iio_triggered_buffer_cleanup(indio_dev);
 
-	ak09940_i2c_write(client, AK09940_REG_CNTL3, 0);
+	ak09940_set_PDN_mode(akm);
 
 	if (akm->rstn_gpio > 0) {
 		gpio_set_value(akm->rstn_gpio, 0);
 		msleep(20);
 		gpio_free(akm->rstn_gpio);
 	}
-
-
 	return 0;
 }
 
@@ -2028,8 +2025,8 @@ static int ak09940_i2c_suspend(struct device *dev)
 	struct iio_dev	  *indio_dev = i2c_get_clientdata(i2c);
 	struct ak09940_data *akm = iio_priv(indio_dev);
 
-	ak09940_i2c_write(i2c, AK09940_REG_CNTL3, 0);
-
+	/* Reset device and all configure */
+	ak09940_software_reset(akm);
 	if (akm->rstn_gpio > 0)
 		gpio_set_value(akm->rstn_gpio, 0);
 
@@ -2038,10 +2035,18 @@ static int ak09940_i2c_suspend(struct device *dev)
 
 static int ak09940_i2c_resume(struct device *dev)
 {
-	struct i2c_client *i2c = to_i2c_client(dev);
+	struct i2c_client   *i2c = to_i2c_client(dev);
+	struct iio_dev	  *indio_dev = i2c_get_clientdata(i2c);
+	struct ak09940_data *akm = iio_priv(indio_dev);
 
-	ak09940_setup(i2c);
-
+	if (akm->rstn_gpio > 0) {
+		gpio_set_value(akm->rstn_gpio, 0);
+		mdelay(10);
+		gpio_set_value(akm->rstn_gpio, 1);
+		mdelay(1);
+	}
+	/* Reset device, system will set mode later*/
+	ak09940_software_reset(akm);
 	return 0;
 }
 
