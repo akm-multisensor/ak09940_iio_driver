@@ -732,13 +732,12 @@ static int ak09940_set_mode(
 	akm->mode = mode;
 	return error;
 }
-
-static int ak09940_get_continue_mode_by_interval(
+static u8 ak09940_get_continue_mode_by_interval(
 	struct ak09940_data *akm,
 	int				 interval)
 {
 	int n = 0;
-	int mode = 0;
+	int mode = AK09940_MODE_PDN;
 	int freq = 0;
 
 	akdbgprt(&akm->client->dev,
@@ -747,18 +746,18 @@ static int ak09940_get_continue_mode_by_interval(
 	if (interval < 0) {
 		dev_err(&akm->client->dev, "[AK09940] %s Val Error val = %d\n",
 				__func__, interval);
-		return -EINVAL;
-	}
-
-	if (interval == 0) {
-		mode = AK09940_MODE_PDN;
 		return mode;
 	}
 
+	if (interval == 0)
+		return mode;
+
 	freq = 1000 / interval;
 
-	while ((freq > akm->freqmodeTable[n].freq) && (n < (akm->freq_num - 1)))
-		n++;
+	for (n = 0; n < akm->freq_num - 1; n++) {
+		if (freq <= akm->freqmodeTable[n].freq)
+			break;
+	}
 
 	mode = akm->freqmodeTable[n].reg;
 	akdbgprt(&akm->client->dev,
@@ -775,8 +774,10 @@ static int ak09940_get_samp_freq(
 	int freq = -1;
 
 	for (i = 0; i < akm->freq_num; i++) {
-		if (mode == akm->freqmodeTable[i].reg)
+		if (mode == akm->freqmodeTable[i].reg) {
 			freq = akm->freqmodeTable[i].freq;
+			break;
+		}
 	}
 	return freq;
 }
