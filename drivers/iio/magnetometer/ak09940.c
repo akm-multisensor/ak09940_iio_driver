@@ -152,7 +152,7 @@ enum {
 
 struct FreqModeTable {
 	int freq;
-	int reg;
+	u8 reg;
 } FreqModeTableStruct;
 static struct FreqModeTable measurementFreqModeTable[] = {
 	{0,	AK09940_MODE_PDN},
@@ -178,9 +178,9 @@ struct ak09940_data {
 	int				int_gpio;
 	int				irq;
 	/* this value represents current operation mode.
-	 *  this value should be one of measurementModeRegTable
+	 * this value should be one of measurementFreqModeTable.reg
 	 */
-	atomic_t			mode;
+	u8			mode;
 	struct FreqModeTable	*freqmodeTable;
 	u8				 freq_num;
 
@@ -383,9 +383,7 @@ static int ak09940_set_mode_measure(
 			return error;
 	}
 
-	if (atomic_cmpxchg(&akm->mode,
-			AK09940_MODE_PDN, mode)
-			!= AK09940_MODE_PDN) {
+	if (akm->mode != AK09940_MODE_PDN) {
 		/* now mode is not PDN mode, set PDN mode first */
 		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 			AK09940_SDR(akm->SDRbit) + AK09940_MODE_PDN;
@@ -393,10 +391,10 @@ static int ak09940_set_mode_measure(
 								  cntl3_value);
 
 		if (error) {
-			atomic_set(&akm->mode, AK09940_MODE_PDN);
+			akm->mode = AK09940_MODE_PDN;
 			return error;
 		}
-
+		akm->mode = mode;
 		msleep(20);
 	}
 
@@ -406,7 +404,7 @@ static int ak09940_set_mode_measure(
 	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
 
 	if (error) {
-		atomic_set(&akm->mode, AK09940_MODE_PDN);
+		akm->mode = AK09940_MODE_PDN;
 		return error;
 	}
 	if ((mode == AK09940_MODE_SNG) ||
@@ -414,9 +412,9 @@ static int ak09940_set_mode_measure(
 		/* if mode is single measurement or selftest
 		 * chip will switch to PDN mode automatically
 		 */
-		atomic_set(&akm->mode, AK09940_MODE_PDN);
+		akm->mode = AK09940_MODE_PDN;
 	} else {
-		atomic_set(&akm->mode, mode);
+		akm->mode = mode;
 	}
 	return error;
 }
@@ -637,7 +635,7 @@ static ssize_t attr_setting_reg_store(
 				i++;
 				continue;
 			}
-			atomic_set(&akm->mode, i);
+			akm->mode = i;
 			break;
 		}
 	}
@@ -861,13 +859,13 @@ static ssize_t attr_watermark_store(
 		if (akm->watermark_en != 0) {
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 				AK09940_SDR(
-					akm->SDRbit) + atomic_read(&akm->mode);
+					akm->SDRbit) + akm->mode;
 			error = ak09940_i2c_write(akm->client,
 					AK09940_REG_CNTL3,
 					cntl3_value);
 
 			if (error) {
-				atomic_set(&akm->mode, AK09940_MODE_PDN);
+				akm->mode = AK09940_MODE_PDN;
 				return error;
 			}
 			akm->watermark_en = 0;
@@ -876,13 +874,13 @@ static ssize_t attr_watermark_store(
 		if (akm->watermark_en == 0) {
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
 				AK09940_SDR(
-					akm->SDRbit) + atomic_read(&akm->mode);
+					akm->SDRbit) + akm->mode;
 			error = ak09940_i2c_write(akm->client,
 						  AK09940_REG_CNTL3,
 						  cntl3_value);
 
 			if (error) {
-				atomic_set(&akm->mode, AK09940_MODE_PDN);
+				akm->mode = AK09940_MODE_PDN;
 				return error;
 			}
 			akm->watermark_en = 1;
@@ -1020,7 +1018,6 @@ static int ak09940_read_raw(
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	int				 readValue;
 	int				 ret;
-	int				 mode = 0;
 
 	akdbgprt(&akm->client->dev,
 		"%s called (index=%d)", __func__, chan->scan_index);
@@ -1041,10 +1038,9 @@ static int ak09940_read_raw(
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		mode = atomic_read(&akm->mode);
-		*val = ak09940_get_samp_freq(akm, mode);
+		*val = ak09940_get_samp_freq(akm, akm->mode);
 		pr_info("[AK09940] %s : mode=%x, freq=%d\n", __func__,
-				mode, *val);
+				akm->mode, *val);
 		return IIO_VAL_INT;
 	}
 
@@ -1067,7 +1063,7 @@ static int ak09940_set_measurement_freq(
 
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s mode = %d\n",
-		__func__, atomic_read(&akm->mode));
+		__func__, akm->mode);
 
 	return 0;
 }
@@ -1201,7 +1197,6 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 	s32 temp_event[3];
 	u64 time_interval = 0;
 	s64 cur_time = 0;
-	int cur_mode = atomic_read(&akm->mode);
 
 #ifdef KERNEL_3_18_XX
 	now = iio_get_time_ns();
@@ -1221,7 +1216,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 				"[AK09940] %s, fifo not ready!\n", __func__);
 			break;
 		}
-		if (cur_mode == AK09940_MODE_SELFTEST) {
+		if (akm->mode == AK09940_MODE_SELFTEST) {
 			ak09940_i2c_read(client, AK09940_REG_ST1,
 				AK09940_READ_DATA_LENGTH,
 				rdata);
@@ -1320,8 +1315,6 @@ static int ak09940_setup(struct i2c_client *client)
 	struct iio_dev	  *indio_dev = i2c_get_clientdata(client);
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	s32				 err;
-	u8				  deviceID[2];
-	u8				  ctnl3;
 
 	akdbgprt(&akm->client->dev,
 		"[AK09940] %s(%d)\n", __func__, __LINE__);
@@ -1348,7 +1341,7 @@ static int ak09940_setup(struct i2c_client *client)
 	akm->freqmodeTable = measurementFreqModeTable;
 	akm->freq_num = ARRAY_SIZE(measurementFreqModeTable);
 
-	atomic_set(&akm->mode, AK09940_MODE_PDN);
+	akm->mode = AK09940_MODE_PDN;
 	akm->watermark = 0;
 	akm->watermark_en = 0;
 	akm->TEMPbit = 1;
