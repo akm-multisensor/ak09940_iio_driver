@@ -87,7 +87,7 @@
 #define AK09940_MEASUREMENT_WAIT_TIME		2
 
 #define AK09940_MAG_DATA_LENGTH			9
-#define AK09940_READ_DATA_LENGTH		12
+#define AK09940_REG_ST1_ST2_LENGTH		12
 
 #define AK09940_MODE_PDN			0x00
 #define AK09940_MODE_SNG			0x01
@@ -904,7 +904,7 @@ static ssize_t attr_data_reg_show(
 	char					*buf)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	u8  result[AK09940_READ_DATA_LENGTH];
+	u8  result[AK09940_REG_ST1_ST2_LENGTH];
 	s32 mag[3];
 	int ret;
 #ifdef AK09940_DEBUG
@@ -914,10 +914,10 @@ static ssize_t attr_data_reg_show(
 	akdbgprt(dev, "[AK09940] %s called", __func__);
 
 	ret = ak09940_i2c_read(akm->client, AK09940_REG_ST1,
-					   AK09940_READ_DATA_LENGTH, result);
+					   AK09940_REG_ST1_ST2_LENGTH, result);
 
 #ifdef AK09940_DEBUG
-	for (i = 0; i < AK09940_READ_DATA_LENGTH; i++) {
+	for (i = 0; i < AK09940_REG_ST1_ST2_LENGTH; i++) {
 		akdbgprt(dev,
 			"[AK09940] %s %d %02XH\n",
 			__func__, i, result[i]);
@@ -978,7 +978,7 @@ static ssize_t attr_selftest_show(
 	char					*buf)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	u8  result[AK09940_READ_DATA_LENGTH];
+	u8  result[AK09940_REG_ST1_ST2_LENGTH];
 	s32 mag[3];
 	int ret;
 
@@ -995,7 +995,7 @@ static ssize_t attr_selftest_show(
 
 	msleep(20);
 	ret = ak09940_i2c_read(akm->client, AK09940_REG_ST1,
-					   AK09940_READ_DATA_LENGTH, result);
+					   AK09940_REG_ST1_ST2_LENGTH, result);
 
 	if (ret < 0)
 		return ret;
@@ -1354,18 +1354,16 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 {
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	struct i2c_client   *client = akm->client;
-#ifdef AK09940_DEBUG
-	int i;
-#endif
-	u8 rdata[AK09940_READ_DATA_LENGTH];
+	u8 rdata[AK09940_REG_ST1_ST2_LENGTH];
 	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 	s32 temp_event[3];
 	int j = 0;
 
-	ak09940_i2c_read(client, AK09940_REG_ST1,
-		AK09940_READ_DATA_LENGTH,
+	ak09940_i2c_read(client,
+		AK09940_REG_ST1,
+		AK09940_REG_ST1_ST2_LENGTH,
 		rdata);
 
 	memset(event, 0, sizeof(event));
@@ -1380,25 +1378,26 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 */
 	ak09940_parse_raw_data(&rdata[AK09940_DATA_POS],
 					temp_event);
+
 	if (ak09940_data_check_overflow(temp_event)) {
 		dev_err(&client->dev,
 			"[AK09940] %s(%d)  read mag data overflow\n",
 			 __func__, __LINE__);
 	}
+	ak09940_convert_axis(temp_event, pevent,
+			akm->axis_order, akm->axis_sign);
+#ifdef AK09940_DEBUG
+	akdbgprt(&client->dev,
+		"[AK09940] %s mag, %04XH,%04XH,%04XH\n",
+		__func__, *pevent, *(pevent + 1), *(pevent + 2));
+#endif
+
 	/*  convert data to Q10 format
 	 *  register data is 18bit
 	 *  so we use Q10 format here
 	 */
 	for (j = 0; j < 3; j++)
 		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
-
-	ak09940_convert_axis(temp_event, pevent,
-			akm->axis_order, akm->axis_sign);
-#ifdef AK09940_DEBUG
-	akdbgprt(&client->dev,
-		"[AK09940] %s mag, %04XH,%04XH,%04XH\n",
-		__func__, *pevent, *pevent + 1, *pevent + 2);
-#endif
 
 #ifdef KERNEL_3_18_XX
 	iio_push_to_buffers_with_timestamp(indio_dev, event,
@@ -1407,14 +1406,12 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	iio_push_to_buffers_with_timestamp(indio_dev, event,
 						iio_get_time_ns(indio_dev));
 #endif
-
-
 }
 static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 {
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	struct i2c_client   *client = akm->client;
-	u8 rdata[AK09940_READ_DATA_LENGTH];
+	u8 rdata[AK09940_REG_ST1_ST2_LENGTH];
 	s64 now;
 	int i = 0;
 	int j = 0;
@@ -1434,9 +1431,9 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 	do_div(time_interval, akm->watermark);
 	for (i = 0; i < akm->watermark; i++) {
 		ak09940_i2c_read(client, AK09940_REG_ST1,
-			AK09940_READ_DATA_LENGTH,
+			AK09940_REG_ST1_ST2_LENGTH,
 			rdata);
-		if (rdata[AK09940_READ_DATA_LENGTH - 1] &
+		if (rdata[AK09940_REG_ST1_ST2_LENGTH - 1] &
 				AK09940_FIFO_INV_BIT_MASK) {
 			dev_err(&client->dev,
 				"[AK09940] %s, fifo not ready!\n", __func__);
@@ -1444,7 +1441,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		}
 		if (akm->mode == AK09940_MODE_SELFTEST) {
 			ak09940_i2c_read(client, AK09940_REG_ST1,
-				AK09940_READ_DATA_LENGTH,
+				AK09940_REG_ST1_ST2_LENGTH,
 				rdata);
 			selftest_judgement(akm, (s32 *)(rdata+1));
 			break;
