@@ -505,6 +505,35 @@ static int ak09940_data_check_overflow(s32 *mag)
 
 	return 0;
 }
+static int ak09940_software_reset(
+	struct ak09940_data *akm)
+{
+	int error = 0;
+	u8  address = 0;
+	u8  value = 0;
+
+	akdbgprt(&akm->client->dev,
+		"[AK09940] %s called", __func__);
+	address = AK09940_REG_SRST;
+	value = 0x01;
+	error = ak09940_i2c_write(akm->client, address, value);
+	if (error) {
+		/* I2C write failed */
+		dev_err(&akm->client->dev,
+			"[AK09940] %s set software reset failed\n",
+			__func__);
+		return error;
+	}
+	/* reset variables */
+	akm->mode = AK09940_MODE_PDN;
+	akm->watermark = 0;
+	akm->watermark_en = 0;
+	akm->TEMPbit = 1;
+	akm->MTbit = 0;
+	/* reset timestamp */
+	akm->prev_time_ns = 0;
+	return error;
+}
 static int ak09940_read_device_and_check(
 	struct ak09940_data *akm)
 {
@@ -893,16 +922,18 @@ static ssize_t attr_softreset_store(
 	size_t				  count)
 {
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
-	int ret = 0;
-	u8  address = 0;
-	u8  value = 0;
+	int error = 0;
+	long reset = 0;
 
-	akdbgprt(dev, "[AK09940] %s called: '%s'(%zu)",
-		__func__, buf, count);
-
-	address = AK09940_REG_SRST;
-	value = 0x01;
-	ret = ak09940_i2c_write(akm->client, address, value);
+	akdbgprt(dev, "[AK09940] %s called, buf=%s", __func__, buf);
+	error = kstrtol(buf, 10, &reset);
+	if (error)
+		return error;
+	if (reset == 0)
+		return error;
+	error = ak09940_software_reset(akm);
+	if (error)
+		return error;
 
 	return count;
 }
