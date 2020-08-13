@@ -133,6 +133,31 @@
 
 #define AK09940_PDN_MODE_DELAY	20
 
+/* for selsf-test start*/
+#define TLIMIT_NO_CNT_1ST			0x101
+#define TLIMIT_LO_CNT_1ST			1
+#define TLIMIT_HI_CNT_1ST			1
+#define TLIMIT_NO_CNT_2ND			0x102
+#define TLIMIT_LO_CNT_2ND			0
+#define TLIMIT_HI_CNT_2ND			0
+#define TLIMIT_OVERFLOW			0x103
+
+#define TLIMIT_NO_SLF_RVHX			0x201
+#define TLIMIT_NO_SLF_RVHY			0x202
+#define TLIMIT_NO_SLF_RVHZ			0x203
+
+#define TLIMIT_LO_SLF_RVHX_AK09940	-1200
+#define TLIMIT_HI_SLF_RVHX_AK09940	-300
+#define TLIMIT_LO_SLF_RVHY_AK09940	300
+#define TLIMIT_HI_SLF_RVHY_AK09940	1200
+#define TLIMIT_LO_SLF_RVHZ_AK09940	-1600
+#define TLIMIT_HI_SLF_RVHZ_AK09940	-400
+
+/* for selsf-test end*/
+
+#define SELF_TEST_SUCCESS	0
+#define SELF_TEST_FAIL		1
+
 /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
 #define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
 
@@ -1007,33 +1032,20 @@ static IIO_DEVICE_ATTR(data_reg,
 		attr_data_reg_show,
 		NULL,
 		0);
-
-static void selftest_judgement(
-	struct ak09940_data *akm,
-	const s32		   data[])
+static int ak0991x_test_threshold(
+	uint16_t testno,
+	int16_t testdata,
+	int16_t lolimit,
+	int16_t hilimit,
+	uint32_t *err)
 {
-	int i;
-	int result = 0;
+	if ((lolimit <= testdata) && (testdata <= hilimit))
+		return SELF_TEST_SUCCESS;
 
-	akdbgprt(&akm->client->dev,
-		"AK09940] %s , mag, %d,%d,%d\n",
-		__func__, data[0], data[1], data[2]);
-
-	for (i = 0; i < 3; i++) {
-		if ((data[i] < akm->test_lolim[i]) ||
-			(akm->test_hilim[i] < data[i])) {
-			akdbgprt(&akm->client->dev,
-				"[AK09940] %s , axis %d failed,  data,%d, low_limit,%d,hi_limit,%d\n",
-				__func__, i,
-				data[i], akm->test_lolim[i],
-				akm->test_hilim[i]);
-			result |= (1 << i);
-		}
-	}
-
-	akm->selftest = result;
+	*err = (uint32_t)((((uint32_t)testno) << 16) |
+		((uint16_t)testdata));
+	return SELF_TEST_FAIL;
 }
-
 static ssize_t attr_selftest_show(
 	struct device		   *dev,
 	struct device_attribute *attr,
@@ -1042,32 +1054,104 @@ static ssize_t attr_selftest_show(
 	struct ak09940_data *akm = iio_priv(dev_to_iio_dev(dev));
 	u8  result[AK09940_REG_ST1_ST2_LENGTH];
 	s32 mag[3];
-	int ret;
+	int error = 0;
+	u8 drdy = 0;
+	u32 err;
 
 	akdbgprt(dev, "[AK09940] %s called", __func__);
+	/* reset chip first */
+	error = ak09940_software_reset(akm);
+	if (error)
+		return error;
 
-	ret = ak09940_set_mode(akm, AK09940_MODE_SELFTEST);
+	/* Step 1: check measurement data*/
+	/* set to sngle mode*/
+	error = ak09940_set_mode(akm, AK09940_MODE_SNG);
+	if (error)
+		return error;
 
-	if (ret) {
-		dev_dbg(dev,
-			"[AK09940] %s device set selftest mode fail",
-			__func__);
-		return 0;
+	/* wait for double length measurement time*/
+	msleep(20);
+	/* get measurement data for 1st */
+	ak09940_i2c_read(akm->client,
+		AK09940_REG_ST1,
+		AK09940_REG_ST1_ST2_LENGTH,
+		result);
+	/* measurement finish, so DRDY should be 1*/
+	drdy = result[0] & AK09940_DRDY_MASK;
+	if (ak0991x_test_threshold(TLIMIT_NO_CNT_1ST,
+		drdy,
+		TLIMIT_LO_CNT_1ST,
+		TLIMIT_HI_CNT_1ST,
+		&err))
+		goto SELF_TEST_FAILED;
+	/* get measurement data for 1st */
+	ak09940_i2c_read(akm->client,
+		AK09940_REG_ST1,
+		AK09940_REG_ST1_ST2_LENGTH,
+		result);
+	/* data have been read out, so DRDY should be 0*/
+	drdy = result[0] & AK09940_DRDY_MASK;
+	if (ak0991x_test_threshold(TLIMIT_NO_CNT_2ND,
+		drdy,
+		TLIMIT_LO_CNT_2ND,
+		TLIMIT_HI_CNT_2ND,
+		&err))
+		goto SELF_TEST_FAILED;
+	/* get magnetic data */
+	ak09940_parse_raw_data(result+1, mag);
+	/* check data overflow */
+	error = ak09940_data_check_overflow(mag);
+	if (error) {
+		error = TLIMIT_OVERFLOW << 16 | error;
+		goto SELF_TEST_FAILED;
 	}
 
+	/* reset chip */
+	error = ak09940_software_reset(akm);
+	if (error)
+		return error;
+
+	/* Step 2: check self-test mode*/
+	error = ak09940_set_mode(akm, AK09940_MODE_SELFTEST);
+	if (error)
+		return error;
+
+	/* wait for double length measurement time*/
 	msleep(20);
-	ret = ak09940_i2c_read(akm->client, AK09940_REG_ST1,
-					   AK09940_REG_ST1_ST2_LENGTH, result);
+	/* get measurement data */
+	ak09940_i2c_read(akm->client,
+		AK09940_REG_ST1,
+		AK09940_REG_ST1_ST2_LENGTH,
+		result);
 
-	if (ret < 0)
-		return ret;
-
-	ak09940_parse_raw_data(&result[AK09940_DATA_POS], mag);
-	akdbgprt(dev, "[AK09940] mag[X,Y,Z]=[%d,%d,%d]\n",
-		(s32)mag[0], (s32)mag[1], (s32)mag[2]);
-
-	selftest_judgement(akm, mag);
+	/* get magnetic data */
+	ak09940_parse_raw_data(result+1, mag);
+	/* check value */
+	if (ak0991x_test_threshold(TLIMIT_NO_SLF_RVHX,
+		mag[0],
+		TLIMIT_LO_SLF_RVHX_AK09940,
+		TLIMIT_HI_SLF_RVHX_AK09940,
+		&err))
+		goto SELF_TEST_FAILED;
+	if (ak0991x_test_threshold(TLIMIT_NO_SLF_RVHY,
+		mag[1],
+		TLIMIT_LO_SLF_RVHY_AK09940,
+		TLIMIT_HI_SLF_RVHY_AK09940,
+		&err))
+		goto SELF_TEST_FAILED;
+	if (ak0991x_test_threshold(TLIMIT_NO_SLF_RVHZ,
+		mag[2],
+		TLIMIT_LO_SLF_RVHZ_AK09940,
+		TLIMIT_HI_SLF_RVHZ_AK09940,
+		&err))
+		goto SELF_TEST_FAILED;
 	return snprintf(buf, 6, "pass\n");
+SELF_TEST_FAILED:
+	dev_err(dev,
+		"[AK09940] selftest faile, err=%x",
+		err);
+	return snprintf(buf, 8, "failed\n");
 }
 
 static IIO_DEVICE_ATTR(selftest,
