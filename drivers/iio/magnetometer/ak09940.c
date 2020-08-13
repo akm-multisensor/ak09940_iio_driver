@@ -86,8 +86,9 @@
 
 #define AK09940_MEASUREMENT_WAIT_TIME		2
 
-#define AK09940_MAG_DATA_LENGTH			9
+#define AK09940_REG_HXL_HZH_LENGTH		9
 #define AK09940_REG_ST1_ST2_LENGTH		12
+#define AK09940_REG_HXL_ST2_LENGTH		11	//no ST1 in FIFO
 
 #define AK09940_MODE_PDN			0x00
 #define AK09940_MODE_SNG			0x01
@@ -119,6 +120,11 @@
 #define AK09940_MT_SHIFT			5
 #define AK09940_MODE_MASK			0x1F
 #define AK09940_MODE_SHIFT			0
+#define AK09940_FNUM_MASK			0x1e
+#define AK09940_FNUN_SHIFT			1
+#define AK09940_FIFO_MAX_SIZE		8
+#define AK09940_FIFO_INV_BIT_MASK		0x02
+#define AK09940_DRDY_MASK			0x01
 #define AK09940_TEMP_BIT_MASK		0x40
 #define AK09940_TEMP_BIT_SHIFT		6
 
@@ -142,7 +148,11 @@ enum {
 	AK09940_TMPS_POS = 10,
 	AK09940_ST2_POS = 11
 } AK09940_REG_POS_ENUM;
-
+enum {
+	AK09940_FIFO_DATA_POS = 0,
+	AK09940_FIFO_TMPS_POS = 9,
+	AK09940_FIFO_ST2_POS = 10
+} AK09940_FIFO_REG_POS_ENUM;
 /*
  *0 : Power Down
  *1 : Measurement Mode 1
@@ -1411,16 +1421,24 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 {
 	struct ak09940_data *akm = iio_priv(indio_dev);
 	struct i2c_client   *client = akm->client;
-	u8 rdata[AK09940_REG_ST1_ST2_LENGTH];
 	s64 now;
 	int i = 0;
 	int j = 0;
-	/* data(32bit) * 3-axis + status(16bit) + timestamp(64bit) */
+	/* position:
+	 * ST1(8bit)+ST2(8bit)+data(32bit) * 3-axis + timestamp(64bit)
+	 */
 	u8  event[sizeof(s32) * 3 + sizeof(s16) + sizeof(s64)];
 	s32 *pevent;
 	s32 temp_event[3];
 	u64 time_interval = 0;
 	s64 cur_time = 0;
+	int read_bytes = 0;
+	int event_pos = 0;
+	/* ST1+FIFO data length*/
+	/* FIFO data length: (HXL_ST2_LENGTH) * FIFO MAX STEP*/
+	u8 rdata[AK09940_REG_HXL_ST2_LENGTH * AK09940_FIFO_MAX_SIZE + 1] = {0};
+	u8 st1 = 0;
+	int event_num = 0;
 
 #ifdef KERNEL_3_18_XX
 	now = iio_get_time_ns();
@@ -1429,42 +1447,34 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 #endif
 	time_interval = now - akm->prev_time_ns;
 	do_div(time_interval, akm->watermark);
+	/* read ST1 to get how many event in FIFO */
+	ak09940_i2c_read(client,
+		AK09940_REG_ST1,
+		1,
+		rdata);
+	st1 = rdata[0];
+	akdbgprt(&client->dev, "[AK09940] %s, st1=%x\n", __func__, st1);
+	event_num = (st1 & AK09940_FNUM_MASK) >> AK09940_FNUN_SHIFT;
+	/* total bytes is ST1 + event_num * AK09940_DATA_FIFO_LENGTH*/
+	read_bytes = AK09940_REG_HXL_ST2_LENGTH * event_num + 1;
+	ak09940_i2c_read(client, AK09940_REG_ST1,
+		read_bytes,
+		rdata);
 	for (i = 0; i < akm->watermark; i++) {
-		ak09940_i2c_read(client, AK09940_REG_ST1,
-			AK09940_REG_ST1_ST2_LENGTH,
-			rdata);
-		if (rdata[AK09940_REG_ST1_ST2_LENGTH - 1] &
-				AK09940_FIFO_INV_BIT_MASK) {
-			dev_err(&client->dev,
-				"[AK09940] %s, fifo not ready!\n", __func__);
-			break;
-		}
-		if (akm->mode == AK09940_MODE_SELFTEST) {
-			ak09940_i2c_read(client, AK09940_REG_ST1,
-				AK09940_REG_ST1_ST2_LENGTH,
-				rdata);
-			selftest_judgement(akm, (s32 *)(rdata+1));
-			break;
-		}
+		event_pos = i * AK09940_REG_HXL_ST2_LENGTH + 1;
 		memset(event, 0, sizeof(event));
 
-		event[0] = rdata[AK09940_ST1_POS];
-		event[1] = rdata[AK09940_ST2_POS];
+		event[0] = rdata[AK09940_ST1_POS] & AK09940_DRDY_MASK;
+		event[1] = rdata[event_pos + AK09940_FIFO_ST2_POS];
 
 		pevent = (s32 *)&event[2];
 		/*  convert register data to magdata
 		 *  register data: 3 * 8bit
 		 *  magdata: 3 * 18bit
 		 */
-		ak09940_parse_raw_data(&rdata[AK09940_DATA_POS],
+		ak09940_parse_raw_data(
+			&rdata[event_pos + AK09940_FIFO_DATA_POS],
 			temp_event);
-		/*  convert data to Q10 format
-		 *  register data is 18bit
-		 *  so we use Q10 format here
-		 */
-		for (j = 0; j < 3; j++)
-			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
-
 		if (ak09940_data_check_overflow(temp_event)) {
 			dev_err(&client->dev,
 			"[AK09940] %s(%d)  read mag data overflow!!!!!!!!!\n",
@@ -1472,12 +1482,19 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		}
 		ak09940_convert_axis(temp_event, pevent,
 			akm->axis_order, akm->axis_sign);
-		cur_time = akm->prev_time_ns + time_interval * (i + 1);
 #ifdef AK09940_DEBUG
 	akdbgprt(&client->dev,
 		"[AK09940] %s mag, %04XH,%04XH,%04XH,time,%lld\n",
-		__func__, *pevent, *pevent + 1, *pevent + 2, cur_time);
+		__func__, *pevent, *(pevent + 1), *(pevent + 2), cur_time);
 #endif
+		/*  convert data to Q10 format
+		 *  register data is 18bit
+		 *  so we use Q10 format here
+		 */
+		for (j = 0; j < 3; j++)
+			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
+
+		cur_time = akm->prev_time_ns + time_interval * (i + 1);
 		iio_push_to_buffers_with_timestamp(indio_dev, event, cur_time);
 	}
 	akm->prev_time_ns = now;
