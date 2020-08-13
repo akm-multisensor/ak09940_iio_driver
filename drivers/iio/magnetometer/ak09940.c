@@ -111,12 +111,12 @@
 
 #define AK09940_WM(wm)				((wm - 1) & 0x07)
 #define AK09940_WM_EN(en)			((en) << 7)
-#define AK09940_SDR(sdr)				((sdr) << 5)
+#define AK09940_MT(mt)				((mt) << 5)
 
 #define AK09940_WM_EN_MASK			0x80
-#define AK09940_WM_EN_SHIFT			7
-#define AK09940_SDR_MASK			0x60
-#define AK09940_SDR_SHIFT			5
+#define AK09940_WM_EN_SHIFT		7
+#define AK09940_MT_MASK			0x60
+#define AK09940_MT_SHIFT			5
 #define AK09940_MODE_MASK			0x1F
 #define AK09940_MODE_SHIFT			0
 
@@ -178,15 +178,16 @@ struct ak09940_data {
 	int				int_gpio;
 	int				irq;
 	/* this value represents current operation mode.
-	 * this value should be one of measurementFreqModeTable.reg
+	 * this value should be register value
+	 * CNTL3(bit0:bit4)
 	 */
 	u8			mode;
 	struct FreqModeTable	*freqmodeTable;
 	u8				 freq_num;
 
-	u8				 SDRbit;
+	u8				 MTbit;
 	u8				 selftest;
-
+	/* size of FIFO, range is 1 - 8 */
 	u8				 watermark;
 	u8				 watermark_en;
 	u8				 TEMPbit;
@@ -386,7 +387,7 @@ static int ak09940_set_mode_measure(
 	if (akm->mode != AK09940_MODE_PDN) {
 		/* now mode is not PDN mode, set PDN mode first */
 		cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-			AK09940_SDR(akm->SDRbit) + AK09940_MODE_PDN;
+			AK09940_MT(akm->MTbit) + AK09940_MODE_PDN;
 		error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3,
 								  cntl3_value);
 
@@ -399,7 +400,7 @@ static int ak09940_set_mode_measure(
 	}
 
 	cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-		AK09940_SDR(akm->SDRbit) +
+		AK09940_MT(akm->MTbit) +
 		mode;
 	error = ak09940_i2c_write(akm->client, AK09940_REG_CNTL3, cntl3_value);
 
@@ -626,8 +627,8 @@ static ssize_t attr_setting_reg_store(
 		case 0x32:
 			akm->watermark_en = (val[1] & AK09940_WM_EN_MASK) >>
 				AK09940_WM_EN_SHIFT;
-			akm->SDRbit = (val[1] & AK09940_SDR_MASK) >>
-				AK09940_SDR_SHIFT;
+			akm->MTbit = (val[1] & AK09940_MT_MASK) >>
+				AK09940_MT_SHIFT;
 			new_mode = (val[1] & AK09940_MODE_MASK) >>
 				AK09940_MODE_SHIFT;
 
@@ -858,8 +859,8 @@ static ssize_t attr_watermark_store(
 	if (akm->watermark == 0) {
 		if (akm->watermark_en != 0) {
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-				AK09940_SDR(
-					akm->SDRbit) + akm->mode;
+				AK09940_MT(
+					akm->MTbit) + akm->mode;
 			error = ak09940_i2c_write(akm->client,
 					AK09940_REG_CNTL3,
 					cntl3_value);
@@ -873,8 +874,8 @@ static ssize_t attr_watermark_store(
 	} else {
 		if (akm->watermark_en == 0) {
 			cntl3_value = AK09940_WM_EN(akm->watermark_en) +
-				AK09940_SDR(
-					akm->SDRbit) + akm->mode;
+				AK09940_MT(
+					akm->MTbit) + akm->mode;
 			error = ak09940_i2c_write(akm->client,
 						  AK09940_REG_CNTL3,
 						  cntl3_value);
@@ -1345,7 +1346,7 @@ static int ak09940_setup(struct i2c_client *client)
 	akm->watermark = 0;
 	akm->watermark_en = 0;
 	akm->TEMPbit = 1;
-	akm->SDRbit = 0;
+	akm->MTbit = 0;
 	/* reset timestamp */
 	akm->prev_time_ns = 0;
 
