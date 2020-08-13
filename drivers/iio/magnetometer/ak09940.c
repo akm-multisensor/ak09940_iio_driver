@@ -161,8 +161,6 @@
 /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
 #define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
 
-#define AK09940_FIFO_INV_BIT_MASK		0x02
-
 #define NUM_OF_AXIS				3
 
 #define RAW_DATA_TO_Q10(x)		(x << 10)
@@ -302,7 +300,7 @@ static int ak09940_i2c_read(
 			rdata[i] = 0;
 	}
 
-	return (ret);
+	return ret;
 }
 
 static int ak09940_i2c_write(
@@ -816,7 +814,11 @@ static int ak09940_get_samp_freq(
 	}
 	return freq;
 }
-
+/*
+ * convert from reg data to mag data
+ * reg: from HXL to HZH
+ * mag: 3axis 18 bit mag data
+ */
 static int ak09940_parse_raw_data(
 	u8  *reg,
 	s32 *mag)
@@ -829,7 +831,7 @@ static int ak09940_parse_raw_data(
 	if (mag == NULL)
 		return -EINVAL;
 
-	/* Store data (uT) */
+	/* Store data */
 	for (i = 0; i < 3; i++) {
 		/* convert to int32 data */
 		*(mag + i) = (int32_t)
@@ -1396,9 +1398,9 @@ static int ak09940_read_raw(
 		if (iio_buffer_enabled(indio_dev))
 			return -EBUSY;
 		ret = ak09940_read_axis(akm, chan->scan_index, &readValue);
-		pr_info("[AK09940] %s : scan_index=%d, readValue=%X\n",
-				__func__,
-				chan->scan_index, readValue);
+		akdbgprt(&akm->client->dev,
+			"[AK09940] %s : scan_index=%d, readValue=%X\n",
+			__func__, chan->scan_index, readValue);
 		*val = readValue;
 		return IIO_VAL_INT;
 
@@ -1408,8 +1410,9 @@ static int ak09940_read_raw(
 
 	case IIO_CHAN_INFO_SAMP_FREQ:
 		*val = ak09940_get_samp_freq(akm, akm->mode);
-		pr_info("[AK09940] %s : mode=%x, freq=%d\n", __func__,
-				akm->mode, *val);
+		akdbgprt(&akm->client->dev,
+			"[AK09940] %s : mode=%x, freq=%d\n",
+			__func__, akm->mode, *val);
 		return IIO_VAL_INT;
 	}
 
@@ -1656,8 +1659,6 @@ static void ak09940_flush_handler(struct work_struct *work)
 		container_of(work, struct ak09940_data, flush_work);
 	struct iio_dev *indio_dev = iio_priv_to_dev(akm);
 
-	akdbgprt(&akm->client->dev, "%s called", __func__);
-
 	ak09940_send_event(indio_dev);
 }
 
@@ -1838,7 +1839,13 @@ static int ak09940_set_trigger_state(
 	struct iio_trigger *trig,
 	bool			   state)
 {
-	pr_err("%s called. st=%s", __func__, (state ? "true" : "false"));
+	const struct iio_dev         *indio_dev = dev_get_drvdata(
+							trig->dev.parent);
+	const struct ak09940_data *akm = iio_priv(indio_dev);
+
+	akdbgprt(&akm->client->dev,
+		"%s called. st=%s",
+		__func__, (state ? "true" : "false"));
 	return 0;
 }
 
