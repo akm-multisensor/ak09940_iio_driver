@@ -874,6 +874,8 @@ static int ak09940_software_reset(
 			__func__);
 		return error;
 	}
+	/* wait until device is ready(PORT) */
+	udelay(100);
 	/* reset variables */
 	akm->mode = AK09940_MODE_PDN;
 	akm->watermark = 0;
