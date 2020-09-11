@@ -1822,7 +1822,7 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 			ak09940->rstn_gpio = -1;
 			return ret;
 		}
-		gpio_direction_output(ak09940->rstn_gpio, 0);
+		gpio_direction_output(ak09940->rstn_gpio, 1);
 	}
 
 	/* init INT pin */
