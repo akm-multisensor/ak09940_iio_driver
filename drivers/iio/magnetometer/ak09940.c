@@ -832,7 +832,7 @@ static int ak09940_parse_raw_data(
 		return -EINVAL;
 
 	/* Store data */
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < NUM_OF_AXIS; i++) {
 		/* convert to int32 data */
 		*(mag + i) = (int32_t)
 			(((uint32_t)reg[i * 3 + 2] << 24) |
@@ -848,7 +848,7 @@ static int ak09940_data_check_overflow(s32 *mag)
 
 	if (mag == NULL)
 		return -EINVAL;
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < NUM_OF_AXIS; i++) {
 		if (mag[i] == AK09940_DATA_OVERFLOW_VALUE)
 			return AK09940_OVERFLOW;
 	}
@@ -1491,7 +1491,7 @@ static int ak09940_convert_axis(
 		pr_err("[AK09940] %s axis_sign is NULL!!!\n", __func__);
 		return -1;
 	}
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < NUM_OF_AXIS; i++) {
 		new_data[i] = pre_data[axis_order[i]];
 		if (axis_sign[i])
 			new_data[i] *= -1;
@@ -1544,7 +1544,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 *  register data is 18bit
 	 *  so we use Q10 format here
 	 */
-	for (j = 0; j < 3; j++)
+	for (j = 0; j < NUM_OF_AXIS; j++)
 		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
 
 #ifdef KERNEL_3_18_XX
