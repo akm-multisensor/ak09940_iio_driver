@@ -1612,7 +1612,7 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 	ak09940_i2c_read(client, AK09940_REG_ST1,
 		read_bytes,
 		rdata);
-	for (i = 0; i < akm->watermark; i++) {
+	for (i = 0; i < event_num; i++) {
 		event_pos = i * AK09940_REG_HXL_ST2_LENGTH + 1;
 		memset(event, 0, sizeof(event));
 
