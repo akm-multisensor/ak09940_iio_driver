@@ -1015,7 +1015,7 @@ static ssize_t attr_data_reg_show(
 		for (i = 0; i < event_num; i++) {
 			event_pos = i * AK09940_REG_HXL_ST2_LENGTH + 1;
 			ak09940_parse_raw_data(
-				&result[event_pos + AK09940_DATA_POS],
+				&result[event_pos + AK09940_FIFO_DATA_POS],
 				mag);
 			if (ak09940_data_check_overflow(mag)) {
 				dev_err(dev,
