@@ -1545,7 +1545,7 @@ static void ak09940_read_and_event(struct iio_dev *indio_dev)
 	 *  so we use Q10 format here
 	 */
 	for (j = 0; j < NUM_OF_AXIS; j++)
-		temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
+		*(pevent + j)  = RAW_DATA_TO_Q10(*(pevent + j));
 
 #ifdef KERNEL_3_18_XX
 	iio_push_to_buffers_with_timestamp(indio_dev, event,
@@ -1629,8 +1629,8 @@ static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev)
 		 *  register data is 18bit
 		 *  so we use Q10 format here
 		 */
-		for (j = 0; j < 3; j++)
-			temp_event[j] = RAW_DATA_TO_Q10(temp_event[j]);
+		for (j = 0; j < NUM_OF_AXIS; j++)
+			*(pevent + j) = RAW_DATA_TO_Q10(*(pevent + j));
 
 		cur_time = akm->prev_time_ns + time_interval * (i + 1);
 		iio_push_to_buffers_with_timestamp(indio_dev, event, cur_time);
@@ -1728,7 +1728,7 @@ static void ak09940_set_default_axis(
 {
 	int i;
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < NUM_OF_AXIS; i++) {
 		akm->axis_order[i] = i;
 		akm->axis_sign[i] = 0;
 	}
