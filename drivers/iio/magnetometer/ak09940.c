@@ -2008,6 +2008,10 @@ err_request_irq:
 
 err_trigger_alloc:
 err_setup:
+	if (akm->rstn_gpio > 0)
+		gpio_free(akm->rstn_gpio);
+	if (akm->int_gpio > 0)
+		gpio_free(akm->int_gpio);
 err_gpio_request:
 	iio_device_free(indio_dev);
 
