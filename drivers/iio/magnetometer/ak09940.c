@@ -500,10 +500,14 @@ static int ak09940_set_temperature_en(
 	if (value == akm->TEMPbit)
 		return error;
 
-	cntl2_value = (value << AK09940_TEMP_BIT_SHIFT) &&
-		AK09940_TEMP_BIT_MASK;
 	/*change CTNL2, must in PDN mode*/
 	if (akm->mode == AK09940_MODE_PDN) {
+		/* Check value validity, range is 0 - 1 */
+		if (value > 1)
+			return -EINVAL;
+
+		cntl2_value = (value << AK09940_TEMP_BIT_SHIFT) &&
+			AK09940_TEMP_BIT_MASK;
 		error = ak09940_i2c_write(
 			akm->client,
 			AK09940_REG_CNTL2,
@@ -512,6 +516,7 @@ static int ak09940_set_temperature_en(
 			/* I2C write failed*/
 			return error;
 		}
+		akm->TEMPbit = value;
 	} else {
 		dev_err(&akm->client->dev,
 			"[AK09940] %s chip is busy now, set PDN mode first\n",
@@ -535,6 +540,10 @@ static int ak09940_set_sensor_drive(
 
 	/*change MT[1:0], must in PDN mode*/
 	if (akm->mode == AK09940_MODE_PDN) {
+		/* Check value validity, range is 0 - 3 */
+		if (value > 3)
+			return -EINVAL;
+
 		cntl3_value =
 			AK09940_WM_EN(akm->watermark_en) +
 			AK09940_MT(value);
@@ -546,6 +555,7 @@ static int ak09940_set_sensor_drive(
 			/* I2C write failed*/
 			return error;
 		}
+		akm->MTbit = value;
 	} else {
 		dev_err(&akm->client->dev,
 			"[AK09940] %s chip is busy now, set PDN mode first\n",
