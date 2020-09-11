@@ -1897,9 +1897,10 @@ static int ak09940_probe(
 		if ((akm->rstn_gpio == -1) ||
 			(akm->int_gpio == -1))
 			goto err_gpio_request;
-		else
-			dev_err(&client->dev,
-			"[AK09940] Device Tree Setting was not found!\n");
+		if (akm->irq < 0)
+			goto err_gpio_to_irq;
+		dev_err(&client->dev,
+		"[AK09940] Device Tree Setting was not found!\n");
 	}
 
 	if (id)
@@ -2008,6 +2009,7 @@ err_request_irq:
 
 err_trigger_alloc:
 err_setup:
+err_gpio_to_irq:
 	if (akm->rstn_gpio > 0)
 		gpio_free(akm->rstn_gpio);
 	if (akm->int_gpio > 0)
