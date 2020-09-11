@@ -460,7 +460,7 @@ static int ak09940_set_watermark(
 	if (akm->mode == AK09940_MODE_PDN) {
 		/* 1. check watermark value */
 		error = check_watermark_available(value);
-		if (value < 0) {
+		if (error < 0) {
 			dev_err(&akm->client->dev,
 				"[AK09940] %s watermark value error\n",
 				__func__);
@@ -2024,18 +2024,29 @@ static int ak09940_remove(struct i2c_client *client)
 {
 	struct iio_dev	  *indio_dev = i2c_get_clientdata(client);
 	struct ak09940_data *akm = iio_priv(indio_dev);
-
-	iio_trigger_free(akm->trig);
-	iio_device_unregister(indio_dev);
-	iio_triggered_buffer_cleanup(indio_dev);
+	struct device	   *dev = &client->dev;
 
 	ak09940_set_PDN_mode(akm);
 
 	if (akm->rstn_gpio > 0) {
 		gpio_set_value(akm->rstn_gpio, 0);
 		msleep(20);
-		gpio_free(akm->rstn_gpio);
 	}
+
+	iio_triggered_buffer_cleanup(indio_dev);
+	if (akm->wq)
+		destroy_workqueue(akm->wq);
+	if (akm->irq)
+		iio_trigger_unregister(akm->trig);
+	if (akm->irq)
+		devm_free_irq(dev, akm->irq, akm);
+	if (akm->irq)
+		iio_trigger_free(akm->trig);
+	if (akm->rstn_gpio > 0)
+		gpio_free(akm->rstn_gpio);
+	if (akm->int_gpio > 0)
+		gpio_free(akm->int_gpio);
+	iio_device_free(indio_dev);
 	return 0;
 }
 
