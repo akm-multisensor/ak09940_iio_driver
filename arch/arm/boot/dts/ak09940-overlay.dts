@@ -19,12 +19,20 @@
 				ak09940,int_gpio = <&gpio 17  0>;
 				reg = <0x0c>;
 				ak09940,rst_gpio = <&gpio 4 0>;
+				//order value range: 0 - 2
 				axis_order_x=/bits/ 8 <0>;
 				axis_order_y=/bits/ 8 <1>;
 				axis_order_z=/bits/ 8 <2>;
+				//sign value range: 0 - 1
 				axis_sign_x=/bits/ 8 <0>;
 				axis_sign_y=/bits/ 8 <0>;
 				axis_sign_z=/bits/ 8 <0>;
+				//sensor drive value range: 0 - 3
+				sensor_drive=/bits/ 8 <0>;
+				//watermark value range: 1 - 8
+				watermark=/bits/ 8 <0>;
+				//tempreture_en value range: 0 - 1
+				tempreture_en=/bits/ 8 <0>;
 
 				status = "okay";
 			};

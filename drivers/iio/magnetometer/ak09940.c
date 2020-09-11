@@ -231,8 +231,8 @@ struct ak09940_data {
 	u8				 TEMPbit;
 
 	/* Axis conversion */
-	u8				 axis_order[NUM_OF_AXIS];
-	u8				 axis_sign[NUM_OF_AXIS];
+	u8				 *axis_order;
+	u8				 *axis_sign;
 
 	s32				test_lolim[3];
 	s32				test_hilim[3];
@@ -242,6 +242,16 @@ struct ak09940_data {
 	s64				prev_time_ns;
 
 };
+/* information read from dts file */
+struct dts_information {
+	u8				 axis_order[NUM_OF_AXIS];
+	u8				 axis_sign[NUM_OF_AXIS];
+
+	u8				 watermark;
+	u8				 TEMPbit;
+	u8				 MTbit;
+};
+struct dts_information dts_info;
 
 static void ak09940_fifo_read_and_event(struct iio_dev *indio_dev);
 
@@ -1727,12 +1737,14 @@ static int ak09940_setup(struct i2c_client *client)
 	akm->freq_num = ARRAY_SIZE(measurementFreqModeTable);
 
 	akm->mode = AK09940_MODE_PDN;
-	akm->watermark = 0;
-	akm->watermark_en = 0;
-	akm->TEMPbit = 1;
-	akm->MTbit = 0;
 	/* reset timestamp */
 	akm->prev_time_ns = 0;
+
+	akm->axis_order = dts_info.axis_order;
+	akm->axis_sign = dts_info.axis_sign;
+	ak09940_set_sensor_drive(akm, dts_info.MTbit);
+	ak09940_set_watermark(akm, dts_info.watermark);
+	ak09940_set_temperature_en(akm, dts_info.TEMPbit);
 
 	return 0;
 }
@@ -1751,6 +1763,16 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 {
 	struct device	  *dev;
 	struct device_node *np;
+	u8 value = 0;
+	char *order_string_array[3] = {
+		"axis_order_x",
+		"axis_order_y",
+		"axis_order_z"};
+	char *sign_string_array[3] = {
+		"axis_sign_x",
+		"axis_sign_y",
+		"axis_sign_z"};
+	int i = 0;
 
 	dev = &(akm->client->dev);
 	np = dev->of_node;
@@ -1759,24 +1781,39 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 		/* get from device node */
 		/* parameters are declared as 'unsigned char' */
 		/* if parameter cannot be get, use default value */
-		if (of_property_read_u8(np, "axis_order_x",
-					&akm->axis_order[0]) != 0)
-			goto SET_DEFAULT_AXIS;
-		if (of_property_read_u8(np, "axis_order_y",
-					&akm->axis_order[1]) != 0)
-			goto SET_DEFAULT_AXIS;
-		if (of_property_read_u8(np, "axis_order_z",
-					&akm->axis_order[2]) != 0)
-			goto SET_DEFAULT_AXIS;
-		if (of_property_read_u8(np, "axis_sign_x",
-					&akm->axis_sign[0]) != 0)
-			goto SET_DEFAULT_AXIS;
-		if (of_property_read_u8(np, "axis_sign_y",
-					&akm->axis_sign[1]) != 0)
-			goto SET_DEFAULT_AXIS;
-		if (of_property_read_u8(np, "axis_sign_z",
-					&akm->axis_sign[2]) != 0)
-			goto SET_DEFAULT_AXIS;
+		for (i = 0; i < NUM_OF_AXIS; i++) {
+			/* read and check order value */
+			if (of_property_read_u8(np,
+				order_string_array[i],
+				&value) != 0) {
+				goto SET_DEFAULT_AXIS;
+			} else {
+				if (value > 2) {
+					dev_dbg(dev,
+						"%s : axis_order range error",
+						__func__);
+					goto SET_DEFAULT_AXIS;
+				} else {
+					dts_info.axis_order[i] = value;
+				}
+			}
+			/* read and check sign value */
+			if (of_property_read_u8(np,
+				sign_string_array[i],
+				&value) != 0) {
+				goto SET_DEFAULT_AXIS;
+			} else {
+				if (value > 1) {
+					dev_dbg(dev,
+						"%s : axis_sign range error",
+						__func__);
+					goto SET_DEFAULT_AXIS;
+				} else {
+					dts_info.axis_sign[i] = value;
+				}
+			}
+
+		}
 	} else {
 		ak09940_set_default_axis(akm);
 	}
@@ -1794,7 +1831,8 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 {
 	struct device	  *dev;
 	struct device_node *np;
-	int				ret;
+	int ret;
+	u8 value = 0;
 
 	dev = &(ak09940->client->dev);
 	np = dev->of_node;
@@ -1807,6 +1845,33 @@ static int ak09940_parse_dt(struct ak09940_data *ak09940)
 		return -EINVAL;
 	}
 	ak09940_init_axis(ak09940);
+
+	if (!of_property_read_u8(np, "sensor_drive", &value)) {
+		if (value > 3)
+			dev_err(dev,
+				"[AK09940] %s : sensor drive range error\n",
+				__func__);
+		else
+			dts_info.MTbit = value;
+	}
+
+	if (!of_property_read_u8(np, "watermark", &value)) {
+		if (check_watermark_available(value) < 0)
+			dev_err(dev,
+				"[AK09940] %s : watermark range error\n",
+				__func__);
+		else
+			dts_info.watermark = value;
+	}
+
+	if (!of_property_read_u8(np, "tempreture_en", &value)) {
+		if (value > 1)
+			dev_err(dev,
+				"[AK09940] %s : tempreture_en range error\n",
+				__func__);
+		else
+			dts_info.TEMPbit = value;
+	}
 
 	/* init RST pin */
 	ak09940->rstn_gpio = of_get_named_gpio(np, "ak09940,rst_gpio", 0);
