@@ -159,7 +159,9 @@
 #define SELF_TEST_FAIL		1
 
 /* S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP */
-#define AK09940_IIO_DEVICE_ATTR_PERMISSION	0660
+#define AK09940_IIO_DEVICE_ATTR_RW_PERMISSION	0660
+#define AK09940_IIO_DEVICE_ATTR_RO_PERMISSION	0440
+#define AK09940_IIO_DEVICE_ATTR_WO_PERMISSION	0220
 
 #define NUM_OF_AXIS				3
 
@@ -932,7 +934,7 @@ static ssize_t attr_setting_reg_show(
 }
 
 static IIO_DEVICE_ATTR(setting_reg,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RO_PERMISSION,
 		attr_setting_reg_show,
 		NULL,
 		0);
@@ -1032,7 +1034,7 @@ static ssize_t attr_data_reg_show(
 }
 
 static IIO_DEVICE_ATTR(data_reg,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RO_PERMISSION,
 		attr_data_reg_show,
 		NULL,
 		0);
@@ -1159,7 +1161,7 @@ SELF_TEST_FAILED:
 }
 
 static IIO_DEVICE_ATTR(selftest,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RO_PERMISSION,
 		attr_selftest_show,
 		NULL,
 		0);
@@ -1193,7 +1195,7 @@ static ssize_t attr_operation_mode_store(
 	return count;
 }
 static IIO_DEVICE_ATTR(operation_mode,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RW_PERMISSION,
 		attr_operation_mode_show,
 		attr_operation_mode_store,
 		0);
@@ -1228,7 +1230,7 @@ static ssize_t attr_watermark_store(
 }
 
 static IIO_DEVICE_ATTR(watermark,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RW_PERMISSION,
 		attr_watermark_show,
 		attr_watermark_store,
 		0);
@@ -1263,7 +1265,7 @@ static ssize_t attr_sensor_drive_store(
 }
 
 static IIO_DEVICE_ATTR(sensor_drive,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_RW_PERMISSION,
 		attr_sensor_drive_show,
 		attr_sensor_drive_store,
 		0);
@@ -1291,7 +1293,7 @@ static ssize_t attr_softreset_store(
 }
 
 static IIO_DEVICE_ATTR(reset,
-		AK09940_IIO_DEVICE_ATTR_PERMISSION,
+		AK09940_IIO_DEVICE_ATTR_WO_PERMISSION,
 		NULL,
 		attr_softreset_store,
 		0);
