@@ -1818,8 +1818,8 @@ static void ak09940_init_axis(struct ak09940_data *akm)
 		ak09940_set_default_axis(akm);
 	}
 	akdbgprt(dev, "%s : axis=[%d,%d,%d] sign=[%d,%d,%d]", __func__,
-		akm->axis_order[0], akm->axis_order[1], akm->axis_order[2],
-		akm->axis_sign[0], akm->axis_sign[1], akm->axis_sign[2]);
+		dts_info.axis_order[0], dts_info.axis_order[1], dts_info.axis_order[2],
+		dts_info.axis_sign[0], dts_info.axis_sign[1], dts_info.axis_sign[2]);
 	return;
 SET_DEFAULT_AXIS:
 	dev_dbg(dev, "%s : set default axis", __func__);
