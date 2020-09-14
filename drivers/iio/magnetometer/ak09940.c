@@ -2075,11 +2075,11 @@ err_request_irq:
 err_trigger_alloc:
 err_setup:
 err_gpio_to_irq:
-	if (akm->rstn_gpio > 0)
-		gpio_free(akm->rstn_gpio);
+err_gpio_request:
 	if (akm->int_gpio > 0)
 		gpio_free(akm->int_gpio);
-err_gpio_request:
+	if (akm->rstn_gpio > 0)
+		gpio_free(akm->rstn_gpio);
 	iio_device_free(indio_dev);
 
 	return err;
