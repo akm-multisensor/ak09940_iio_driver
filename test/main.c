@@ -57,17 +57,16 @@
 
 enum {
 	buf_enable = 0,
-	continuous,
+	op_mode,
 	/* info, */
 	frequency,
-	nsf,
 	reset,
 	selftest,
-	single,
+	watermark,
+	sensor_drive,
 	in_magn_x_raw,
 	in_magn_y_raw,
 	in_magn_z_raw,
-	watermark,
 	element_x_en,
 	element_y_en,
 	element_z_en,
@@ -76,16 +75,15 @@ enum {
 
 #define IIO_DEVICE_NAME iio:device0
 char const * const SYSFS_BUF_ENABLE_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/buffer/enable );
-char const * const SYSFS_CONTINUOUS_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/continuous );
+char const * const SYSFS_MODE_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/operation_mode );
 char const * const SYSFS_FREQUENCY_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/in_magn_sampling_frequency );
-char const * const SYSFS_NSF_FILE_NAME			= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/nsf );
 char const * const SYSFS_RESET_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/reset );
 char const * const SYSFS_SELFTEST_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/selftest );
-char const * const SYSFS_SINGLE_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/single );
+char const * const SYSFS_WATERMARK_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/watermark );
+char const * const SYSFS_MT_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/sensor_drive );
 char const * const SYSFS_MAG_X_RAW_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/in_magn_x_raw );
 char const * const SYSFS_MAG_Y_RAW_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/in_magn_y_raw );
 char const * const SYSFS_MAG_Z_RAW_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/in_magn_z_raw );
-char const * const SYSFS_WATERMARK_FILE_NAME	= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/watermark );
 char const * const SYSFS_EBL_X_EN_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/scan_elements/in_magn_x_en );
 char const * const SYSFS_EBL_Y_EN_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/scan_elements/in_magn_y_en );
 char const * const SYSFS_EBL_Z_EN_FILE_NAME		= TO_STRING( /sys/bus/iio/devices/IIO_DEVICE_NAME/scan_elements/in_magn_z_en );
@@ -300,9 +298,9 @@ int perform_singleshot( void )
 
 	FUNCTION_TRACE;
 
-	if (g_fds[single] < 0) {
-		g_fds[single] = open(SYSFS_SINGLE_FILE_NAME, O_WRONLY);
-		if (g_fds[single] < 0) {
+	if (g_fds[op_mode] < 0) {
+		g_fds[op_mode] = open(SYSFS_MODE_FILE_NAME, O_WRONLY);
+		if (g_fds[op_mode] < 0) {
 			err = errno;
 			fprintf(stderr, "ecompass: failed to open single-shot - errno = %d\n", err);
 			return err;
@@ -311,36 +309,9 @@ int perform_singleshot( void )
 
 	value[0] = '1';
 
-	if (write(g_fds[single], value, sizeof(value)) < 0) {
+	if (write(g_fds[op_mode], value, sizeof(value)) < 0) {
 		err = errno;
 		fprintf(stderr, "ecompass: failed to perform single-shot - errno = %d\n", err);
-		return err;
-	}
-
-	return 0;
-}
-
-int perform_continuous(int mode)
-{
-	int err;
-	char value[8];
-
-	FUNCTION_TRACE;
-
-	if (g_fds[continuous] < 0) {
-		g_fds[continuous] = open(SYSFS_CONTINUOUS_FILE_NAME, O_WRONLY);
-		if (g_fds[continuous] < 0) {
-			err = errno;
-			fprintf(stderr, "ecompass: failed to open continusous - errno = %d\n", err);
-			return err;
-		}
-	}
-
-	sprintf(value, "%d", mode);
-
-	if (write(g_fds[continuous], value, sizeof(value)) < 0) {
-		err = errno;
-		fprintf(stderr, "ecompass: failed to perform continuous - errno = %d\n", err);
 		return err;
 	}
 
@@ -431,10 +402,8 @@ int action_loop(void)
 #if AKMD_SEQUENTIAL_MEASURE
 #if AKMD_SEQUENTIAL_TIMER
 	err = perform_watermark(AKMD_WATERMARK);
-	err = perform_interval(AKMD_INTERVAL);
-#else
-	err = perform_continuous(AKMD_INTERVAL);
 #endif
+	err = perform_interval(AKMD_INTERVAL);
 
 
 	if (err < 0) {
@@ -526,11 +495,7 @@ int action_loop(void)
 
 	/* Stop measure */
 #if AKMD_SEQUENTIAL_MEASURE
-#if AKMD_SEQUENTIAL_TIMER
 	err = perform_interval(0);
-#else
-	err = perform_continuous(0);
-#endif
 	if (err < 0) {
 		return err;
 	}
