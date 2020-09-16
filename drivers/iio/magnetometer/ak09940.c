@@ -1977,7 +1977,7 @@ static int ak09940_probe(
 		goto err_setup;
 	}
 
-	if (akm->irq) {
+	if (akm->irq > 0) {
 		akm->trig = iio_trigger_alloc(
 			"%s-dev%d",
 			name, indio_dev->id);
@@ -2063,13 +2063,13 @@ err_iio_buffer_setup:
 	if (akm->wq)
 		destroy_workqueue(akm->wq);
 err_create_thread_wq:
-	if (akm->irq)
+	if (akm->irq > 0)
 		iio_trigger_unregister(akm->trig);
 err_trigger_register:
-	if (akm->irq)
+	if (akm->irq > 0)
 		devm_free_irq(dev, akm->irq, akm);
 err_request_irq:
-	if (akm->irq)
+	if (akm->irq > 0)
 		iio_trigger_free(akm->trig);
 
 err_trigger_alloc:
@@ -2101,11 +2101,11 @@ static int ak09940_remove(struct i2c_client *client)
 	iio_triggered_buffer_cleanup(indio_dev);
 	if (akm->wq)
 		destroy_workqueue(akm->wq);
-	if (akm->irq)
+	if (akm->irq > 0)
 		iio_trigger_unregister(akm->trig);
-	if (akm->irq)
+	if (akm->irq > 0)
 		devm_free_irq(dev, akm->irq, akm);
-	if (akm->irq)
+	if (akm->irq > 0)
 		iio_trigger_free(akm->trig);
 	if (akm->rstn_gpio > 0)
 		gpio_free(akm->rstn_gpio);
