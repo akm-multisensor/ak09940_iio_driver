@@ -101,15 +101,6 @@
 #define AK09940_MODE_SELFTEST			0x10
 #define AK09940_MODE_NUM			9
 
-
-/* AK09915 selftest threshold */
-#define AK09940_TEST_LOLIM_X			(-1200)
-#define AK09940_TEST_HILIM_X			(-300)
-#define AK09940_TEST_LOLIM_Y			(300)
-#define AK09940_TEST_HILIM_Y			(1200)
-#define AK09940_TEST_LOLIM_Z			(-1600)
-#define AK09940_TEST_HILIM_Z			(-400)
-
 #define AK09940_WM(wm)				((wm - 1) & 0x07)
 #define AK09940_WM_EN(en)			((en) << 7)
 #define AK09940_MT(mt)				((mt) << 5)
@@ -122,6 +113,7 @@
 #define AK09940_MODE_SHIFT			0
 #define AK09940_FNUM_MASK			0x1e
 #define AK09940_FNUN_SHIFT			1
+#define AK09940_FIFO_MIN_SIZE		1
 #define AK09940_FIFO_MAX_SIZE		8
 #define AK09940_FIFO_INV_BIT_MASK		0x02
 #define AK09940_DRDY_MASK			0x01
@@ -403,7 +395,8 @@ static int ak09940_check_mode_available(
  */
 static int check_watermark_available(u8 watermark)
 {
-	if ((watermark < 1) || (watermark > 8))
+	if ((watermark < AK09940_FIFO_MIN_SIZE) ||
+		(watermark > AK09940_FIFO_MAX_SIZE))
 		return -EINVAL;
 	return 0;
 }
@@ -416,10 +409,10 @@ static void update_watermark_flag(
 {
 	akm->watermark = value;
 	/* according watermark reset watermark_en*/
-	if (akm->watermark == 1)
+	if (akm->watermark == AK09940_FIFO_MIN_SIZE)
 		akm->watermark_en = 0;
-	else if ((akm->watermark > 1) &&
-		(akm->watermark <= 8)) {
+	else if ((akm->watermark > AK09940_FIFO_MIN_SIZE) &&
+		(akm->watermark <= AK09940_FIFO_MAX_SIZE)) {
 		akm->watermark_en = 1;
 	}
 }
@@ -1418,8 +1411,8 @@ static int ak09940_read_raw(
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		if (iio_buffer_enabled(indio_dev))
-			return -EBUSY;
+		//if (iio_buffer_enabled(indio_dev))
+			//return -EBUSY;
 		ret = ak09940_read_axis(akm, chan->scan_index, &readValue);
 		akdbgprt(&akm->client->dev,
 			"[AK09940] %s : scan_index=%d, readValue=%X\n",
@@ -1725,13 +1718,13 @@ static int ak09940_setup(struct i2c_client *client)
 	if (err < 0)
 		return err;
 
-	akm->test_lolim[0] = AK09940_TEST_LOLIM_X;
-	akm->test_lolim[1] = AK09940_TEST_LOLIM_Y;
-	akm->test_lolim[2] = AK09940_TEST_LOLIM_Z;
+	akm->test_lolim[0] = TLIMIT_LO_SLF_RVHX_AK09940;
+	akm->test_lolim[1] = TLIMIT_LO_SLF_RVHY_AK09940;
+	akm->test_lolim[2] = TLIMIT_LO_SLF_RVHZ_AK09940;
 
-	akm->test_hilim[0] = AK09940_TEST_HILIM_X;
-	akm->test_hilim[1] = AK09940_TEST_HILIM_Y;
-	akm->test_hilim[2] = AK09940_TEST_HILIM_Z;
+	akm->test_hilim[0] = TLIMIT_HI_SLF_RVHX_AK09940;
+	akm->test_hilim[1] = TLIMIT_HI_SLF_RVHY_AK09940;
+	akm->test_hilim[2] = TLIMIT_HI_SLF_RVHZ_AK09940;
 
 	akm->freqmodeTable = measurementFreqModeTable;
 	akm->freq_num = ARRAY_SIZE(measurementFreqModeTable);
